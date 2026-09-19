@@ -71,10 +71,12 @@ They go through `Session:when_listed`, because the listing they need is
 started by the very call that opens the panes; anything waiting is let
 through when `loading` reaches zero.
 
-`ui.ensure_open` deliberately does not take focus, and
+Both end up in the panes, but *when* they switch differs on purpose: panes
+that have to be opened are switched to at once, since opening moves there
+anyway, while panes already open are joined only once the pick has found
+something — so a buffer holding no tests never yanks the cursor out of it.
 `session.on_batch_end` echoes the outcome when the dtest tab is not the one
-being looked at, since otherwise a run started from the code reports into
-a window nobody can see.
+being looked at, which is what makes `focus = false` usable.
 
 ### Keys go through actions
 

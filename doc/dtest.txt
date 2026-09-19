@@ -60,14 +60,16 @@ No other plugins are needed.
 
                                                                   *:DtestFile*
 :DtestFile[!]           Run every test the file in the current buffer
-                        declares. Focus stays in the buffer and the outcome
-                        is echoed when the run ends; with !, the panes are
-                        shown instead. See |dtest-from-source|.
+                        declares, and go to the panes to watch. With !, the
+                        run happens in the background: the cursor stays in
+                        the buffer and the outcome is echoed when it ends.
+                        See |dtest-from-source|.
 
                                                                *:DtestNearest*
-:DtestNearest[!]        Run the test the cursor is in. Above the first test
-                        of a class, the class is what runs. With !, the
-                        panes are shown. See |dtest-from-source|.
+:DtestNearest[!]        Run the test the cursor is in, and go to the panes.
+                        Above the first test of a class, the class is what
+                        runs. With !, the run happens in the background.
+                        See |dtest-from-source|.
 
                                                                 *:DtestReload*
 :DtestReload            Rebuild and list the tests again.
@@ -161,10 +163,14 @@ Which tests a buffer holds is worked out from the classes it declares and
 the names dotnet already listed, so a helper or a call to another test is
 never mistaken for one. The buffer is read, not the file on disk.
 
-Neither command takes focus: the panes open in their own tab if they were
-closed, the cursor stays in the code, and the outcome is echoed when the
-run ends. With ! (or `focus = true`) you are taken to the panes. Either
-way the tree opens on whatever ran.
+Both take you to the panes, opening them in their own tab when they are
+closed, with the tree already on what is running. A buffer holding nothing
+dtest knows about is the exception: there is nothing to watch, so it says
+so and leaves you where you are.
+
+With ! (or `focus = false`) the run happens in the background: the cursor
+stays in the code and the outcome is echoed when it ends. That line is
+echoed after any run whose panes are not the tab being looked at.
 >lua
     vim.keymap.set('n', '<leader>tt', function() require('dtest').run_nearest() end)
     vim.keymap.set('n', '<leader>tf', function() require('dtest').run_file() end)

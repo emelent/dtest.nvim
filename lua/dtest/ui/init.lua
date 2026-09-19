@@ -405,8 +405,7 @@ function M.open(target)
 end
 
 --- Opens the panes if they are closed. Focus stays where it is unless
---- opts.focus asks otherwise, so a run started from a source buffer leaves
---- the cursor in the code it came from.
+--- opts.focus asks otherwise.
 --- @return table|nil session
 function M.ensure_open(opts)
   opts = opts or {}
@@ -421,6 +420,11 @@ function M.ensure_open(opts)
     vim.api.nvim_set_current_tabpage(S.tab)
   end
   return S.session
+end
+
+--- Brings the panes forward.
+function M.focus()
+  if M.is_open() then vim.api.nvim_set_current_tabpage(S.tab) end
 end
 
 --- Puts the tree cursor on a node, opening whatever hides it.

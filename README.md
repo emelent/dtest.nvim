@@ -137,8 +137,8 @@ the commands still work.
 | `:DtestClose` | Close them and stop whatever dotnet is doing |
 | `:DtestRun` | Open if needed, then run every test |
 | `:DtestRunFailed` | Re-run the tests that failed last time |
-| `:DtestFile[!]` | Run the tests in the file you are editing |
-| `:DtestNearest[!]` | Run the test the cursor is on |
+| `:DtestFile[!]` | Run the tests in the file you are editing, and show them (`!` stays in the buffer) |
+| `:DtestNearest[!]` | Run the test the cursor is on, and show it (`!` stays in the buffer) |
 | `:DtestReload` | Rebuild and list the tests again |
 
 The same from Lua: `require('dtest').open(target)`, `.toggle()`,
@@ -158,23 +158,27 @@ the tree, so a test can be run without leaving the line being written.
   class is what runs. A theory runs all of its rows, since a single row
   cannot be addressed by name.
 
-Neither steals focus: the panes open in a tab of their own if they were
-closed, the cursor stays in the code, and how the run went is echoed when
-it finishes:
-
-```
-dtest: Shop — 1 failed | 7 passed | 0 skipped
-```
-
-Add a `!` (or pass `{ focus = true }`) to be taken to the panes instead.
-Either way the tree opens on what ran, so the failure is on screen when you
-do go over.
+Both take you to the panes, opening them in a tab of their own when they
+are closed, with the tree already on what is running and the log filling in
+beneath it. A buffer holding nothing dtest knows about is the exception:
+there is nothing to watch, so it says so and leaves you where you are.
 
 ```lua
 vim.keymap.set('n', '<leader>tt', function() require('dtest').run_nearest() end)
 vim.keymap.set('n', '<leader>tf', function() require('dtest').run_file() end)
 vim.keymap.set('n', '<leader>ta', require('dtest').run_all)
 ```
+
+Add a `!` (or pass `{ focus = false }`) to run in the background instead:
+the cursor stays on the line being written, and how the run went is echoed
+when it finishes.
+
+```
+dtest: Shop — 1 failed | 7 passed | 0 skipped
+```
+
+That line is echoed after any run whose panes are not the tab being looked
+at, however it was started.
 
 Both read the buffer rather than the file on disk, so an unsaved edit that
 renames a test is seen — though of course only a saved, built one can

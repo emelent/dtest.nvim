@@ -62,6 +62,9 @@ end
 local function run_from_buffer(pick, opts)
   opts = opts or {}
   local ui = require('dtest.ui')
+  -- The panes are where the results are, so that is where this ends up,
+  -- unless it is asked to run in the background.
+  local focus = opts.focus ~= false
   local buf = opts.buf or vim.api.nvim_get_current_buf()
   local path = vim.api.nvim_buf_get_name(buf)
   if path == '' then
@@ -72,8 +75,12 @@ local function run_from_buffer(pick, opts)
   local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
   local row = opts.line or vim.api.nvim_win_get_cursor(0)[1]
 
+  -- Opening the panes moves there anyway, so it happens at once; panes
+  -- that are already open are joined only once there is something to
+  -- watch, so a buffer holding no tests never pulls the cursor out of it.
+  local was_open = ui.is_open()
   local session = ui.ensure_open({
-    focus = opts.focus,
+    focus = focus and not was_open,
     target = opts.target or target_for(path),
   })
   if not session then return end
@@ -85,11 +92,12 @@ local function run_from_buffer(pick, opts)
     end
     ui.reveal(nodes[1])
     session:enqueue(nodes)
+    if focus then ui.focus() end
   end)
 end
 
---- Runs every test the current buffer's file declares.
---- @param opts table|nil {focus=, buf=, target=}
+--- Runs every test the current buffer's file declares, and shows them.
+--- @param opts table|nil {focus=, buf=, target=}; focus=false stays put
 function M.run_file(opts)
   run_from_buffer(function(session, path, lines)
     return session:classes_in(path, lines)
@@ -97,8 +105,8 @@ function M.run_file(opts)
 end
 
 --- Runs the test the cursor is on, or the class it is in when the cursor
---- is above the first test.
---- @param opts table|nil {focus=, buf=, line=, target=}
+--- is above the first test, and shows it.
+--- @param opts table|nil {focus=, buf=, line=, target=}; focus=false stays put
 function M.run_nearest(opts)
   run_from_buffer(function(session, path, lines, row)
     local node, why = session:node_at(path, lines, row)

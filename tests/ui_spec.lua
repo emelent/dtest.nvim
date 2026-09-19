@@ -150,6 +150,20 @@ local function select(pattern)
   return ui.current()
 end
 
+-- Edits the fixture's source file in a tab of its own, as if the panes had
+-- been left behind for the code.
+local function in_source_buffer()
+  vim.cmd('tabnew ' .. vim.fn.fnameescape(commands.source))
+  return vim.api.nvim_get_current_tabpage()
+end
+
+local function drop_tab(tab)
+  if vim.api.nvim_tabpage_is_valid(tab) then
+    vim.api.nvim_set_current_tabpage(tab)
+    vim.cmd('tabclose!')
+  end
+end
+
 local function run_and_wait()
   local s = ui.session()
   t.wait(function() return not s:busy() end, 'the run to finish')
@@ -397,62 +411,80 @@ return {
     close()
   end },
 
-  { 'runs the tests of the file in the buffer, without leaving it', function()
+  { 'runs the tests of the file in the buffer and shows them', function()
     open()
-    vim.cmd('tabnew ' .. vim.fn.fnameescape(commands.source))
+    local source_tab = in_source_buffer()
     require('dtest').run_file({})
     run_and_wait()
-    t.matches('RateLimitMiddlewareTests%.cs$', vim.api.nvim_buf_get_name(0),
-      'the cursor stays in the code the run came from')
+    t.eq(vim.fn.bufnr(ui.buffer_names.tree), vim.api.nvim_get_current_buf(),
+      'the panes are where it lands')
     t.eq('FullyQualifiedName~Shop.Api.Tests.Middleware.RateLimitMiddlewareTests.',
       arg_of(commands[#commands], '--filter'))
     t.ok(t.find_line(t.lines('tree'), 'OverLimit_Returns429'), 'the tree opens on what ran')
-    vim.cmd('tabclose')
+    drop_tab(source_tab)
+    close()
+  end },
+
+  { 'stays in the buffer when asked to run in the background', function()
+    open()
+    local source_tab = in_source_buffer()
+    require('dtest').run_file({ focus = false })
+    run_and_wait()
+    t.matches('RateLimitMiddlewareTests%.cs$', vim.api.nvim_buf_get_name(0),
+      'the cursor stays in the code the run came from')
+    t.eq(1, ui.session().tree:counts().failed)
+    drop_tab(source_tab)
     close()
   end },
 
   { 'runs the test the cursor is on', function()
     open()
-    vim.cmd('tabnew ' .. vim.fn.fnameescape(commands.source))
+    local source_tab = in_source_buffer()
     require('dtest').run_nearest({ line = 13 }) -- inside OverLimit_Returns429
     run_and_wait()
     t.eq('FullyQualifiedName=Shop.Api.Tests.Middleware.RateLimitMiddlewareTests.OverLimit_Returns429',
       arg_of(commands[#commands], '--filter'))
 
+    vim.api.nvim_set_current_tabpage(source_tab)
     vim.api.nvim_win_set_cursor(0, { 6, 0 }) -- the other test, from the real cursor
     require('dtest').run_nearest()
     run_and_wait()
     t.eq('FullyQualifiedName=Shop.Api.Tests.Middleware.RateLimitMiddlewareTests.UnderLimit_Passes',
       arg_of(commands[#commands], '--filter'))
-    vim.cmd('tabclose')
+    drop_tab(source_tab)
     close()
   end },
 
   { 'reads an attribute line as the test under it, and the class above them all', function()
     open()
-    vim.cmd('tabnew ' .. vim.fn.fnameescape(commands.source))
+    local source_tab = in_source_buffer()
     require('dtest').run_nearest({ line = 11 }) -- the [Fact] over OverLimit
     run_and_wait()
     t.eq('FullyQualifiedName=Shop.Api.Tests.Middleware.RateLimitMiddlewareTests.OverLimit_Returns429',
       arg_of(commands[#commands], '--filter'))
 
+    vim.api.nvim_set_current_tabpage(source_tab)
     require('dtest').run_nearest({ line = 1 }) -- above the first test
     run_and_wait()
     t.eq('FullyQualifiedName~Shop.Api.Tests.Middleware.RateLimitMiddlewareTests.',
       arg_of(commands[#commands], '--filter'), 'the class is what the cursor is on')
-    vim.cmd('tabclose')
+    drop_tab(source_tab)
     close()
   end },
 
-  { 'says so when a buffer holds no tests it knows', function()
+  { 'says so when a buffer holds no tests it knows, and stays put', function()
     local s = open()
     local ran = #commands
     vim.cmd('tabnew ' .. vim.fn.fnameescape(vim.fs.dirname(s.target) .. '/Program.cs'))
+    local source_tab = vim.api.nvim_get_current_tabpage()
     vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'public class Program { static void Main() {} }' })
     require('dtest').run_file({})
     t.matches('No listed tests', s.message.text)
     t.eq(ran, #commands, 'and runs nothing')
+    t.matches('Program%.cs$', vim.api.nvim_buf_get_name(0),
+      'nothing to watch, so nothing to switch to')
     vim.cmd('tabclose!')
+    t.ok(source_tab)
     close()
   end },
 
