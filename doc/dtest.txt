@@ -1,0 +1,207 @@
+*dtest.txt*  Run .NET tests from Neovim, in the style of vitest
+
+                                                        *dtest* *dtest.nvim*
+==============================================================================
+CONTENTS                                                      *dtest-contents*
+
+    1. Introduction .......................... |dtest-introduction|
+    2. Requirements .......................... |dtest-requirements|
+    3. Commands .............................. |dtest-commands|
+    4. Lua API ............................... |dtest-api|
+    5. Layout ................................ |dtest-layout|
+    6. Mappings .............................. |dtest-mappings|
+    7. Configuration ......................... |dtest-configuration|
+    8. Highlights ............................ |dtest-highlights|
+    9. How runs work ......................... |dtest-runs|
+
+==============================================================================
+1. INTRODUCTION                                           *dtest-introduction*
+
+dtest.nvim runs the tests of a .NET solution or project from inside Neovim
+and shows them as a tree over a log, the way vitest does. It drives the
+`dotnet` CLI: it builds the target once, lists every test with
+`dotnet test --list-tests`, and runs whatever the tree selects while the
+panes update live.
+
+It is a port of the dtest terminal app, and keeps its layout, its keys and
+its colours.
+
+==============================================================================
+2. REQUIREMENTS                                           *dtest-requirements*
+
+- Neovim 0.10 or newer.
+- The `dotnet` SDK on $PATH, with test projects using the VSTest runner
+  (Microsoft.NET.Test.Sdk with xUnit, NUnit or MSTest).
+
+No other plugins are needed.
+
+==============================================================================
+3. COMMANDS                                                   *dtest-commands*
+
+                                                                      *:Dtest*
+:Dtest [target]         Open the panes for a solution (.sln, .slnx) or
+                        project (.csproj, .fsproj, .vbproj) file. With a
+                        directory, or with no argument at all, a solution
+                        file in that directory is used, or else the first
+                        project file there. Opening while the panes are
+                        already open jumps to them.
+
+                                                                *:DtestToggle*
+:DtestToggle            Open the panes, or close them when they are open.
+
+                                                                 *:DtestClose*
+:DtestClose             Close the panes and stop whatever dotnet is doing.
+
+                                                                   *:DtestRun*
+:DtestRun               Run every test, opening the panes first if needed.
+
+                                                             *:DtestRunFailed*
+:DtestRunFailed         Re-run the tests that failed last time.
+
+                                                                *:DtestReload*
+:DtestReload            Rebuild and list the tests again.
+
+==============================================================================
+4. LUA API                                                         *dtest-api*
+
+                                                             *dtest.setup()*
+require('dtest').setup({opts})
+                        Merge {opts} over the defaults and define the
+                        highlight groups. Optional: the defaults stand
+                        without it. See |dtest-configuration|.
+
+require('dtest').open({target})         Open the panes. |:Dtest|
+require('dtest').toggle()               |:DtestToggle|
+require('dtest').close()                |:DtestClose|
+require('dtest').run_all()              |:DtestRun|
+require('dtest').run_failed()           |:DtestRunFailed|
+require('dtest').reload()               |:DtestReload|
+require('dtest').is_open()              Whether the panes are open.
+
+==============================================================================
+5. LAYOUT                                                       *dtest-layout*
+
+The panes open in a tab page of their own, so nothing you had open moves.
+
+Log     Top, about 65% of the height. The results of whatever the tree
+        selects: for a test its verdict, message, failing location, stack
+        trace and output; for a group every failure beneath it. Build errors
+        come first. It is an ordinary buffer, so Neovim's motions, search
+        and yanking all work in it.
+
+Tests   Below it: projects, classes, methods and theory rows under a root
+        that stands for the solution, with counts and durations rolled up.
+        Moving the cursor here is what changes the log.
+
+Summary The last two lines: what the batch was, and how it went. A message
+        from dtest takes the first of the two while it has something to say.
+
+While the dtest tab is current, 'laststatus' and 'ruler' are off and come
+back the moment another tab is.
+
+The buffers carry the filetypes `dtest-tree`, `dtest-log` and
+`dtest-summary`.
+
+==============================================================================
+6. MAPPINGS                                                   *dtest-mappings*
+
+Press `?` in the tree for the list with whatever keys are bound. Motions
+are Neovim's own in whichever pane has focus.
+
+    <C-j> <C-k> <Tab>   switch between the log and the tree
+    l / h               expand / collapse a project, class or theory
+    L / H               expand / collapse the whole tree
+    <Space>             toggle a fold
+    i / I               focus on the selected project or class; step out
+    <CR> r              run the selected node
+    A                   run the whole solution, or whatever is in focus
+    F                   re-run only the failed tests
+    f / s               show only the failed / skipped tests
+    a                   show all tests again (<Esc> too)
+    x                   cancel the running tests and drop the queue
+    n / N               next / previous failed test
+    o                   open the source of what is selected
+    t /                 filter the tree by name as you type
+    v                   show the raw dotnet output instead of the results
+    <C-r>               rebuild and list the tests again
+    ?                   help; any key closes it
+    q                   close dtest
+
+The tree-only keys (l, h, n, N, /, f, s, a, i, t, <Space>) are bound in the
+tree pane alone, so the log keeps Neovim's search and motions.
+
+`o` opens, in the window dtest was opened from: the file and line named by
+the log line under the cursor when it is a stack frame, else a failed
+test's failing line, else the declaration of what is selected, found by
+scanning the project's sources.
+
+==============================================================================
+7. CONFIGURATION                                         *dtest-configuration*
+
+>lua
+    require('dtest').setup({
+      target = nil,          -- solution or project file; nil looks in the cwd
+      configuration = nil,   -- build configuration passed to dotnet (-c)
+      no_build = false,      -- list and run against existing binaries
+      build_on_open = true,  -- build once when the panes open
+      layout = {
+        log_ratio = 0.65,    -- the share of the height the log takes
+        footer = true,       -- the two summary lines
+      },
+      icons = { passed = '✓', failed = '×', skipped = '↓', none = '·',
+                queued = '⧗', arrow = '❯', open = '▾', closed = '▸',
+                rule = '⎯', spinner = { '⠋', '⠙', '⠹' } },
+      colors = {
+        passed  = { fg = '#87af87', ctermfg = 108 },
+        failed  = { fg = '#af5f5f', ctermfg = 131 },
+        skipped = { fg = '#af875f', ctermfg = 137 },
+        running = { fg = '#5fafaf', ctermfg = 6 },
+        dim     = { fg = '#6c6c6c', ctermfg = 8 },
+        badge   = { fg = '#ffffff', ctermfg = 15 },
+      },
+      keys = { run = { '<CR>', 'r' } },
+    })
+<
+A colour is either a highlight definition as |nvim_set_hl()| takes it, or
+the name of a group to link to.
+
+An action's key list replaces its default outright, so rebinding one never
+disturbs another; an empty list unbinds it. The actions are: >
+    switch-pane  expand  collapse  expand-all  collapse-all  toggle-fold
+    focus  unfocus  run  run-all  run-failed  only-failed  only-skipped
+    show-all  clear  cancel  next-failure  previous-failure
+    open-in-editor  filter  toggle-output  reload  help  quit
+<
+==============================================================================
+8. HIGHLIGHTS                                               *dtest-highlights*
+
+Every group is derived from the six colours above and defined with
+`default = true`, so a colourscheme or your own |:highlight| wins.
+
+    DtestPassed DtestFailed DtestSkipped DtestRunning DtestQueued
+    DtestDim DtestBold DtestKey DtestRule DtestCommand DtestError
+    DtestExpected DtestActual DtestLocation DtestElapsed
+    DtestQuick DtestSlow DtestQuickUnit DtestSlowUnit
+    DtestTreePassed DtestTreeFailed DtestTreeSkipped DtestTreeRunning
+    DtestTreeQuick DtestTreeSlow DtestTreeQuickUnit DtestTreeSlowUnit
+    DtestBadgeFail DtestBadgeInfo DtestCursorLine DtestCursorLineNC
+
+The tree wears a faded shade of each colour, so the summary is the line
+that carries.
+
+==============================================================================
+9. HOW RUNS WORK                                                  *dtest-runs*
+
+Running the root is one `dotnet test` over the solution. Anything smaller
+is one `dotnet test` per project, with `--filter`:
+`FullyQualifiedName~Ns.Class.` for a class, `FullyQualifiedName=Ns.Class.M`
+for a method. A theory row cannot be addressed on its own, so running one
+runs its method. Runs queue up, and everything queued since the last idle
+moment is one batch, which is what the summary reports.
+
+Results arrive twice over: from the console logger line by line as they
+happen, and in full — messages, stack traces, captured output — from the
+.trx files the run leaves behind. A test that was never listed still
+appears, filed under the project whose name its own prefixes.
+
+vim:tw=78:ts=8:ft=help:norl:
