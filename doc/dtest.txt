@@ -164,9 +164,13 @@ the names dotnet already listed, so a helper or a call to another test is
 never mistaken for one. The buffer is read, not the file on disk.
 
 Both take you to the panes, opening them in their own tab when they are
-closed, with the tree already on what is running. A buffer holding nothing
-dtest knows about is the exception: there is nothing to watch, so it says
-so and leaves you where you are.
+closed, and focus the tree on what the file holds: the class it declares
+becomes the root of the tree, as the focus key does, so |:DtestRun| and the
+failure keys stay inside it until |I| steps back out. A file declaring
+several classes focuses the project they share.
+
+A buffer holding nothing dtest knows about is the exception: there is
+nothing to watch, so it says so and leaves you where you are.
 
 With ! (or `focus = false`) the run happens in the background: the cursor
 stays in the code and the outcome is echoed when it ends. That line is

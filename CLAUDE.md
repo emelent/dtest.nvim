@@ -78,6 +78,11 @@ something — so a buffer holding no tests never yanks the cursor out of it.
 `session.on_batch_end` echoes the outcome when the dtest tab is not the one
 being looked at, which is what makes `focus = false` usable.
 
+They also zoom the tree, through `ui.focus_on(tree.common_ancestor(nodes))`:
+one class per file is the common case, so the file becomes the tree. Note
+the two senses of "focus" in this code — the tab switch (`ui.focus`) and the
+zoom that `i` does (`ui.focus_on`, `session.zoom`).
+
 ### Keys go through actions
 
 `config.keys` maps an action name to keys; `ui.actions` holds one function

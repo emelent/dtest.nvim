@@ -323,6 +323,29 @@ function Tree:set_tests(project, names)
   end
 end
 
+--- The deepest node that holds every one of nodes, or nil when they do
+--- not all belong to the same tree.
+function M.common_ancestor(nodes)
+  if #nodes == 0 then return nil end
+  -- Every ancestor of the first node, itself included; the answer is one
+  -- of them, and the shallowest each of the others reaches.
+  local chain, node = {}, nodes[1]
+  while node do
+    chain[node] = true
+    node = node.parent
+  end
+  local shared = nodes[1]
+  for i = 2, #nodes do
+    local other = nodes[i]
+    while other and not chain[other] do
+      other = other.parent
+    end
+    if not other then return nil end
+    if other:depth() < shared:depth() then shared = other end
+  end
+  return shared
+end
+
 --- Flattens the tree into the rows to draw, from the node the view is
 --- rooted at. Without a filter, collapsed nodes hide their children. With a
 --- query, only leaves whose display name (or project name) contains it,

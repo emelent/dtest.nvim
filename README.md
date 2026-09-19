@@ -159,9 +159,13 @@ the tree, so a test can be run without leaving the line being written.
   cannot be addressed by name.
 
 Both take you to the panes, opening them in a tab of their own when they
-are closed, with the tree already on what is running and the log filling in
-beneath it. A buffer holding nothing dtest knows about is the exception:
-there is nothing to watch, so it says so and leaves you where you are.
+are closed, and the tree is **focused on what the file holds** — the class
+it declares becomes the root of the tree, drawn flush, exactly as `i`
+would, so the panes are about the file being worked on. From then on `A`
+runs that class and `n` looks for failures inside it; `I` steps back out a
+level at a time. A file declaring several classes focuses the project they
+share. A buffer holding nothing dtest knows about is the exception: there
+is nothing to watch, so it says so and leaves you where you are.
 
 ```lua
 vim.keymap.set('n', '<leader>tt', function() require('dtest').run_nearest() end)

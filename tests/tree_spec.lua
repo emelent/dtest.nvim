@@ -122,6 +122,20 @@ return {
     t.eq(other, fresh:project())
   end },
 
+  { 'finds the deepest node holding a set of others', function()
+    local tr, project = built()
+    local money = project.children[2]
+    local orders = project.children[1]
+    t.eq(money.children[1], tree.common_ancestor({ money.children[1] }))
+    t.eq(money, tree.common_ancestor({ money.children[1], money.children[2] }))
+    t.eq(money, tree.common_ancestor({ money.children[2].children[1], money }))
+    t.eq(project, tree.common_ancestor({ money, orders }))
+    local other = tr:add_project('/a/tests/Other.Tests/Other.Tests.csproj')
+    tr:set_tests(other, { 'Other.Tests.Api.PingTests.Pongs' })
+    t.eq(tr.root, tree.common_ancestor({ money, other.children[1] }))
+    t.eq(nil, tree.common_ancestor({}))
+  end },
+
   { 'relisting keeps results and folds of the tests that remain', function()
     local tr, project = built()
     local leaf = tr:leaf(project, names[1])

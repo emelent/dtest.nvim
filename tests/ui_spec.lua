@@ -421,6 +421,16 @@ return {
     t.eq('FullyQualifiedName~Shop.Api.Tests.Middleware.RateLimitMiddlewareTests.',
       arg_of(commands[#commands], '--filter'))
     t.ok(t.find_line(t.lines('tree'), 'OverLimit_Returns429'), 'the tree opens on what ran')
+    local s = ui.session()
+    t.eq('Middleware.RateLimitMiddlewareTests', s.zoom.name, "the tree narrows to the file's class")
+    t.eq(s.zoom, s:rows()[1], 'which becomes the root of the tree')
+    t.matches('Tests  in Shop%.Api%.Tests.-Middleware%.RateLimitMiddlewareTests',
+      vim.wo[vim.fn.bufwinid(vim.fn.bufnr(ui.buffer_names.tree))].winbar,
+      'and the title says what is in focus')
+    ui.actions.unfocus()
+    t.eq('Shop.Api.Tests', s.zoom.name, 'and steps back out a level at a time')
+    ui.actions.unfocus()
+    t.eq(nil, s.zoom)
     drop_tab(source_tab)
     close()
   end },
@@ -451,6 +461,8 @@ return {
     run_and_wait()
     t.eq('FullyQualifiedName=Shop.Api.Tests.Middleware.RateLimitMiddlewareTests.UnderLimit_Passes',
       arg_of(commands[#commands], '--filter'))
+    t.eq('Middleware.RateLimitMiddlewareTests', ui.session().zoom.name,
+      'one test focuses the class it is in, never the test itself')
     drop_tab(source_tab)
     close()
   end },

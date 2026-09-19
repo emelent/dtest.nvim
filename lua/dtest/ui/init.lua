@@ -422,6 +422,25 @@ function M.ensure_open(opts)
   return S.session
 end
 
+--- Focuses the tree on a node, the way the focus key does: it becomes the
+--- root of the tree and everything outside it is out of scope. A leaf, a
+--- theory row or the solution itself cannot be focused on, so the nearest
+--- class above is taken instead, and the root widens the view again.
+function M.focus_on(node)
+  if not M.is_open() then return end
+  while node and (node.kind == 'method' or node.kind == 'case') do
+    node = node.parent
+  end
+  local session = S.session
+  if not node or node.kind == 'root' then
+    session.zoom = nil
+  else
+    session.zoom = node
+    node.expanded = true
+  end
+  M.render()
+end
+
 --- Brings the panes forward.
 function M.focus()
   if M.is_open() then vim.api.nvim_set_current_tabpage(S.tab) end
@@ -539,10 +558,8 @@ function actions.focus()
     S.session:notify('Already focused on ' .. n.name, false)
     return
   end
-  S.session.zoom = n
-  n.expanded = true
   S.pending = n
-  M.render()
+  M.focus_on(n)
 end
 
 function actions.unfocus()
