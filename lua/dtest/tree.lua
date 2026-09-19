@@ -97,6 +97,14 @@ function Node:duration()
   return total
 end
 
+--- Opens or closes every group under (and including) the node. A leaf has
+--- nothing to open, so it is left alone.
+function Node:set_expanded(expanded)
+  for _, n in ipairs(M.collect(self)) do
+    if not n:is_leaf() then n.expanded = expanded end
+  end
+end
+
 --- The dotnet --filter expression selecting the node's tests; empty for a
 --- project, which runs unfiltered. A case shares its method's filter, since
 --- data rows cannot be addressed by fully qualified name.
@@ -405,9 +413,7 @@ end
 
 --- Opens or closes every interior node at once, projects included.
 function Tree:set_expanded(expanded)
-  for _, n in ipairs(collect(self.root)) do
-    if not n:is_leaf() then n.expanded = expanded end
-  end
+  self.root:set_expanded(expanded)
 end
 
 --- Every leaf of the tree, in order.

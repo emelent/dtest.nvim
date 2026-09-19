@@ -78,10 +78,15 @@ something — so a buffer holding no tests never yanks the cursor out of it.
 `session.on_batch_end` echoes the outcome when the dtest tab is not the one
 being looked at, which is what makes `focus = false` usable.
 
-They also zoom the tree, through `ui.focus_on(tree.common_ancestor(nodes))`:
-one class per file is the common case, so the file becomes the tree. Note
-the two senses of "focus" in this code — the tab switch (`ui.focus`) and the
-zoom that `i` does (`ui.focus_on`, `session.zoom`).
+They also zoom the tree, through `ui.focus_on(tree.common_ancestor(nodes),
+{ expand = true })`: one class per file is the common case, so the file
+becomes the tree, opened all the way down. Note the two senses of "focus"
+in this code — the tab switch (`ui.focus`) and the zoom that `i` does
+(`ui.focus_on`, `session.zoom`).
+
+That unfolding would be undone seconds later by `fold_by_result`, so these
+runs are enqueued with `{ keep_open = true }`, which holds the folds for
+that batch only (`Session.keep_open`, cleared when the queue empties).
 
 ### Keys go through actions
 

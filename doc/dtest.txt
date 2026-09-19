@@ -165,8 +165,10 @@ never mistaken for one. The buffer is read, not the file on disk.
 
 Both take you to the panes, opening them in their own tab when they are
 closed, and focus the tree on what the file holds: the class it declares
-becomes the root of the tree, as the focus key does, so |:DtestRun| and the
-failure keys stay inside it until |I| steps back out. A file declaring
+becomes the root of the tree, as the focus key does, with every test under
+it unfolded, theory rows included. The run that follows leaves those folds
+alone instead of closing the passing groups, since opening them was the
+point; a later run started from the panes folds as usual. A file declaring
 several classes focuses the project they share.
 
 A buffer holding nothing dtest knows about is the exception: there is

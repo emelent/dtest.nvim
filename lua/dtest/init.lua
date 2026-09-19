@@ -90,11 +90,15 @@ local function run_from_buffer(pick, opts)
       ui.announce(why or ('No tests in ' .. vim.fs.basename(path)), true)
       return
     end
-    -- The tree narrows to what the file holds, so the panes are about the
-    -- file being worked on until it is stepped back out of.
-    ui.focus_on(require('dtest.tree').common_ancestor(nodes))
+    -- The tree narrows to what the file holds and opens all of it, so the
+    -- panes are about the file being worked on, every test of it on
+    -- screen, until it is stepped back out of.
+    for _, node in ipairs(nodes) do
+      node:set_expanded(true)
+    end
+    ui.focus_on(require('dtest.tree').common_ancestor(nodes), { expand = true })
     ui.reveal(nodes[1])
-    session:enqueue(nodes)
+    session:enqueue(nodes, { keep_open = true })
     if focus then ui.focus() end
   end)
 end

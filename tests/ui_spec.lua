@@ -9,6 +9,9 @@ local CORE = 'Shop.Core.Tests'
 local api_tests = {
   'Shop.Api.Tests.Middleware.RateLimitMiddlewareTests.OverLimit_Returns429',
   'Shop.Api.Tests.Middleware.RateLimitMiddlewareTests.UnderLimit_Passes',
+  -- a theory, so the tree has a group inside the class to fold
+  'Shop.Api.Tests.Middleware.RateLimitMiddlewareTests.Bursts_AreCounted(n: 1)',
+  'Shop.Api.Tests.Middleware.RateLimitMiddlewareTests.Bursts_AreCounted(n: 2)',
 }
 local core_tests = {
   'Shop.Core.Tests.Pricing.MoneyTests.Adds',
@@ -45,7 +48,14 @@ local function fixture()
     '    {',                                -- 13
     '        Assert.Equal(429, 428);',      -- 14
     '    }',                                -- 15
-    '}',                                    -- 16
+    '',                                     -- 16
+    '    [Theory]',                         -- 17
+    '    [InlineData(1)]',                  -- 18
+    '    public void Bursts_AreCounted(int n)', -- 19
+    '    {',                                -- 20
+    '        Assert.True(n > 0);',          -- 21
+    '    }',                                -- 22
+    '}',                                    -- 23
   }, '\n'))
   return write(dir .. '/Shop.slnx', string.format(
     '<Solution><Project Path="tests/%s/%s.csproj" /><Project Path="tests/%s/%s.csproj" /></Solution>',
@@ -127,7 +137,7 @@ local function open()
   ui.open(target)
   t.wait(function()
     local s = ui.session()
-    return s and not s:busy() and s.tree:counts().total == 4
+    return s and not s:busy() and s.tree:counts().total == 6
   end, 'the tests to be listed')
   ui.render()
   return ui.session()
@@ -182,7 +192,7 @@ return {
     local s = open()
     t.eq(2, #s.tree.projects)
     local lines = t.lines('tree')
-    t.matches('Shop %(2 projects | 4 tests%)', lines[1])
+    t.matches('Shop %(2 projects | 6 tests%)', lines[1])
     t.eq(3, #lines) -- the root and two collapsed projects
     close()
   end },
@@ -207,11 +217,11 @@ return {
     t.matches('%.slnx$', last[3], 'the root runs the solution itself')
     t.eq(nil, arg_of(last, '--filter'))
     local counts = s.tree:counts()
-    t.eq(3, counts.passed)
+    t.eq(5, counts.passed)
     t.eq(1, counts.failed)
     local footer = t.lines('footer')
-    t.matches('Ran 4 tests in', footer[1])
-    t.matches('1 failed | 3 passed | 0 skipped', footer[2])
+    t.matches('Ran 6 tests in', footer[1])
+    t.matches('1 failed | 5 passed | 0 skipped', footer[2])
     close()
   end },
 
@@ -227,7 +237,7 @@ return {
     t.eq('FullyQualifiedName~Shop.Api.Tests.Middleware.RateLimitMiddlewareTests.',
       arg_of(last, '--filter'))
     t.eq('failed', class:status())
-    t.eq(2, class:counts().total)
+    t.eq(4, class:counts().total)
     close()
   end },
 
@@ -335,7 +345,7 @@ return {
     t.ok(s.run ~= nil or #s.queue > 0, 'something is running or waiting')
     run_and_wait()
     t.eq(0, #s.queue)
-    t.eq(4, s.tree:counts().passed + s.tree:counts().failed)
+    t.eq(6, s.tree:counts().passed + s.tree:counts().failed)
     s:cancel()
     t.matches('Nothing is running', s.message.text)
     close()
@@ -387,7 +397,7 @@ return {
     ui.open(fixture())
     t.wait(function()
       local s = ui.session()
-      return s and not s:busy() and s.tree:counts().total == 4
+      return s and not s:busy() and s.tree:counts().total == 6
     end, 'the tests to be listed')
     t.eq(2, #vim.api.nvim_tabpage_list_wins(0), 'the log and the tree, and nothing else')
     ui.actions['run-all']()
@@ -405,7 +415,7 @@ return {
     ui.open(vim.fs.dirname(target))
     t.wait(function()
       local s = ui.session()
-      return s and not s:busy() and s.tree:counts().total == 4
+      return s and not s:busy() and s.tree:counts().total == 6
     end, 'the tests to be listed')
     t.eq(target, ui.session().target)
     close()
@@ -431,6 +441,24 @@ return {
     t.eq('Shop.Api.Tests', s.zoom.name, 'and steps back out a level at a time')
     ui.actions.unfocus()
     t.eq(nil, s.zoom)
+    drop_tab(source_tab)
+    close()
+  end },
+
+  { 'opens every test of the file, and a run does not fold them away', function()
+    open()
+    local source_tab = in_source_buffer()
+    require('dtest').run_file({})
+    run_and_wait()
+    local lines = t.lines('tree')
+    t.ok(t.find_line(lines, 'Bursts_AreCounted'), 'the theory is there')
+    t.ok(t.find_line(lines, '%(n: 1%)'), 'and is unfolded, though it passed')
+    t.ok(t.find_line(lines, '%(n: 2%)'))
+    -- Only that batch holds its folds; a run from the panes reads as a
+    -- report again, passing groups folded away.
+    ui.actions['run-all']()
+    run_and_wait()
+    t.eq(nil, t.find_line(t.lines('tree'), '%(n: 1%)'), 'the passing theory folds')
     drop_tab(source_tab)
     close()
   end },
@@ -506,7 +534,7 @@ return {
     ui.open(fixture())
     t.wait(function()
       local s = ui.session()
-      return s and not s:busy() and s.tree:counts().total == 4
+      return s and not s:busy() and s.tree:counts().total == 6
     end, 'the tests to be listed')
     local buf = vim.fn.bufnr(ui.buffer_names.tree)
     local keys = {}

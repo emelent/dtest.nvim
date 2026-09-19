@@ -51,6 +51,7 @@ function M.new(target, opts)
     query = '',
     status_filter = nil,
     show_output = false,
+    keep_open = false, -- the running batch must not refold the tree
     locations = {},
     ready = {}, -- waiting for the first listing to finish
     on_change = function() end,
@@ -219,7 +220,10 @@ end
 
 --- Queues a run for each project the nodes belong to and starts the first
 --- when nothing else is running.
-function Session:enqueue(nodes)
+--- @param opts table|nil {keep_open=true} leaves the folds alone when the
+--- run ends, for a view that was opened on purpose
+function Session:enqueue(nodes, opts)
+  self.keep_open = opts ~= nil and opts.keep_open or false
   -- Nothing running means this starts a new batch, so the footer describes
   -- these runs and not the last ones.
   if not self.run then
@@ -363,13 +367,19 @@ function Session:finish(req, results, err)
     if l:status() == 'running' then l:set_status(nil) end
   end
   self.run = nil
-  self.tree:fold_by_result(req.target)
+  -- A run asked for from a source buffer has just opened the tree on that
+  -- file; folding the passing part away again would undo it under the
+  -- reader's eyes.
+  if not self.keep_open then
+    self.tree:fold_by_result(req.target)
+  end
   if err then
     self:drop_queue()
     self:notify(req.label .. ': ' .. err, true)
   end
   if #self.queue == 0 then
     self.batch_end = vim.uv.hrtime()
+    self.keep_open = false -- only the batch that asked for it
     self.on_batch_end(self:batch_counts())
     -- Nothing is running or waiting any more, so nothing may still look
     -- like it is: a relist during a run leaves nodes behind that the run

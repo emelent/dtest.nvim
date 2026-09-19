@@ -426,7 +426,8 @@ end
 --- root of the tree and everything outside it is out of scope. A leaf, a
 --- theory row or the solution itself cannot be focused on, so the nearest
 --- class above is taken instead, and the root widens the view again.
-function M.focus_on(node)
+--- @param opts table|nil {expand=true} opens everything under it as well
+function M.focus_on(node, opts)
   if not M.is_open() then return end
   while node and (node.kind == 'method' or node.kind == 'case') do
     node = node.parent
@@ -436,7 +437,11 @@ function M.focus_on(node)
     session.zoom = nil
   else
     session.zoom = node
-    node.expanded = true
+    if opts and opts.expand then
+      node:set_expanded(true)
+    else
+      node.expanded = true
+    end
   end
   M.render()
 end
