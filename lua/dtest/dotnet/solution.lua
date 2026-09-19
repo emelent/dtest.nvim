@@ -42,6 +42,22 @@ function M.find_target(dir)
   return vim.fs.joinpath(dir, pick)
 end
 
+--- Walks up from dir looking for something to test, for when the working
+--- directory holds nothing but the file being edited does sit inside a
+--- project. The nearest one wins.
+--- @return string|nil target
+function M.find_upward(dir)
+  local current = dir
+  while current and current ~= '' do
+    local found = M.find_target(current)
+    if found then return found end
+    local parent = vim.fs.dirname(current)
+    if parent == current then return nil end
+    current = parent
+  end
+  return nil
+end
+
 --- Returns the project paths of a classic .sln file, as written.
 function M.parse_sln(text)
   local refs = {}

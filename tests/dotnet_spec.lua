@@ -76,6 +76,17 @@ return {
     t.eq(dir .. '/A.slnx', solution.find_target(dir))
   end },
 
+  { 'walks up to the nearest thing to test', function()
+    local dir = tmpdir()
+    write(dir .. '/Shop.slnx', '<Solution/>')
+    write(dir .. '/tests/Lib.Tests/Lib.Tests.csproj', '<Project/>')
+    vim.fn.mkdir(dir .. '/tests/Lib.Tests/Pricing', 'p')
+    t.eq(dir .. '/tests/Lib.Tests/Lib.Tests.csproj',
+      solution.find_upward(dir .. '/tests/Lib.Tests/Pricing'))
+    t.eq(dir .. '/Shop.slnx', solution.find_upward(dir .. '/tests'))
+    t.eq(nil, solution.find_upward('/'))
+  end },
+
   { 'reports a directory with nothing to test', function()
     local target, err = solution.find_target(tmpdir())
     t.eq(nil, target)

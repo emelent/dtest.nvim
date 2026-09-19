@@ -380,6 +380,14 @@ function M.open(target)
     augroup = vim.api.nvim_create_augroup('dtest', { clear = true }),
   }
   session.on_change = schedule_render
+  -- A run started from a source buffer leaves the summary out of sight, so
+  -- how it went is said out loud instead.
+  session.on_batch_end = function(counts)
+    if not M.is_open() or vim.api.nvim_get_current_tabpage() == S.tab then return end
+    vim.notify(string.format('dtest: %s — %d failed | %d passed | %d skipped',
+      session.name, counts.failed, counts.passed, counts.skipped),
+      counts.failed > 0 and vim.log.levels.WARN or vim.log.levels.INFO)
+  end
 
   S.saved = { laststatus = vim.o.laststatus, ruler = vim.o.ruler }
   vim.o.laststatus = 0 -- the pane titles say which pane is which
@@ -394,6 +402,46 @@ function M.open(target)
   vim.api.nvim_set_current_win(tree_win)
   M.render()
   session:start()
+end
+
+--- Opens the panes if they are closed. Focus stays where it is unless
+--- opts.focus asks otherwise, so a run started from a source buffer leaves
+--- the cursor in the code it came from.
+--- @return table|nil session
+function M.ensure_open(opts)
+  opts = opts or {}
+  if not M.is_open() then
+    local back = vim.api.nvim_get_current_win()
+    M.open(opts.target)
+    if not M.is_open() then return nil end
+    if not opts.focus and vim.api.nvim_win_is_valid(back) then
+      pcall(vim.api.nvim_set_current_win, back)
+    end
+  elseif opts.focus then
+    vim.api.nvim_set_current_tabpage(S.tab)
+  end
+  return S.session
+end
+
+--- Puts the tree cursor on a node, opening whatever hides it.
+function M.reveal(node)
+  if not M.is_open() or not node then return end
+  local parent = node.parent
+  while parent do
+    parent.expanded = true
+    parent = parent.parent
+  end
+  S.pending = node
+  M.render()
+end
+
+--- Says something in the summary line, and out loud as well when the panes
+--- are not the tab being looked at.
+function M.announce(text, is_error)
+  if S then S.session:notify(text, is_error) end
+  if not M.is_open() or vim.api.nvim_get_current_tabpage() ~= S.tab then
+    vim.notify('dtest: ' .. text, is_error and vim.log.levels.WARN or vim.log.levels.INFO)
+  end
 end
 
 --- Opens the panes when they are closed and closes them when they are open.
@@ -579,23 +627,13 @@ function actions.help()
   end
 end
 
-local function select_node(node)
-  local p = node.parent
-  while p do
-    p.expanded = true
-    p = p.parent
-  end
-  S.pending = node
-  M.render()
-end
-
 actions['next-failure'] = function()
   local n = S.session:next_failure(selected(), true)
   if not n then
     S.session:notify('No failed tests', false)
     return
   end
-  select_node(n)
+  M.reveal(n)
 end
 
 actions['previous-failure'] = function()
@@ -604,7 +642,7 @@ actions['previous-failure'] = function()
     S.session:notify('No failed tests', false)
     return
   end
-  select_node(n)
+  M.reveal(n)
 end
 
 function actions.filter()

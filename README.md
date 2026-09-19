@@ -112,7 +112,7 @@ With [lazy.nvim](https://github.com/folke/lazy.nvim):
 
 ```lua
 {
-  'dtest-nvim',
+  'emelent/nvim-dtest',
   cmd = { 'Dtest', 'DtestToggle', 'DtestRun' },
   opts = {},
 }
@@ -137,13 +137,57 @@ the commands still work.
 | `:DtestClose` | Close them and stop whatever dotnet is doing |
 | `:DtestRun` | Open if needed, then run every test |
 | `:DtestRunFailed` | Re-run the tests that failed last time |
+| `:DtestFile[!]` | Run the tests in the file you are editing |
+| `:DtestNearest[!]` | Run the test the cursor is on |
 | `:DtestReload` | Rebuild and list the tests again |
 
 The same from Lua: `require('dtest').open(target)`, `.toggle()`,
-`.close()`, `.run_all()`, `.run_failed()`, `.reload()`, `.is_open()`.
+`.close()`, `.run_all()`, `.run_failed()`, `.run_file(opts)`,
+`.run_nearest(opts)`, `.reload()`, `.is_open()`.
+
+### From the file you are editing
+
+`:DtestFile` and `:DtestNearest` work from a source buffer rather than from
+the tree, so a test can be run without leaving the line being written.
+
+- **`:DtestFile`** runs every test class the buffer declares.
+- **`:DtestNearest`** runs the test the cursor is in: the nearest
+  declaration at or above it, counting an attribute line as part of the
+  test under it, so `[Fact]` and `[Theory]` do the expected thing. Above
+  the first test of a class — in the usings, or on the class itself — the
+  class is what runs. A theory runs all of its rows, since a single row
+  cannot be addressed by name.
+
+Neither steals focus: the panes open in a tab of their own if they were
+closed, the cursor stays in the code, and how the run went is echoed when
+it finishes:
+
+```
+dtest: Shop — 1 failed | 7 passed | 0 skipped
+```
+
+Add a `!` (or pass `{ focus = true }`) to be taken to the panes instead.
+Either way the tree opens on what ran, so the failure is on screen when you
+do go over.
+
+```lua
+vim.keymap.set('n', '<leader>tt', function() require('dtest').run_nearest() end)
+vim.keymap.set('n', '<leader>tf', function() require('dtest').run_file() end)
+vim.keymap.set('n', '<leader>ta', require('dtest').run_all)
+```
+
+Both read the buffer rather than the file on disk, so an unsaved edit that
+renames a test is seen — though of course only a saved, built one can
+actually run. Which tests a buffer holds is worked out from the classes it
+declares and the test names dotnet already listed, so a helper method or a
+call to another test is never mistaken for one. When nothing in the buffer
+matches a listed test, it says so and runs nothing.
 
 Without a target, or with a directory, dtest uses a solution file in that
-directory, or else the first project file there (both in name order). On open, the
+directory, or else the first project file there (both in name order).
+`:DtestFile` and `:DtestNearest` fall back to searching upwards from the
+file itself, so they work from a buffer whose project is nowhere near the
+working directory. On open, the
 solution is built once and each test project is listed with `dotnet test
 --list-tests`. Test projects are recognised by a `Microsoft.NET.Test.Sdk`,
 `Microsoft.Testing.Platform`, xUnit, NUnit, MSTest or TUnit reference, or
@@ -275,6 +319,8 @@ not quite key for key with the TUI:
 - The panes live in a tab page and the summary is a window rather than a
   drawn footer, so status lines and the ruler are hidden while that tab is
   current and come back with any other.
+- `:DtestFile` and `:DtestNearest` have no counterpart in the TUI, which
+  has no buffer to read: dtest is driven from its own tree.
 - A solution-wide run reads every `.trx` the run wrote, not one: dotnet
   gives each project its own, and naming them all the same would leave only
   the last project's messages.
@@ -295,6 +341,7 @@ lua/dtest/init.lua      setup() and the public API
 lua/dtest/config.lua    defaults, key bindings, colours
 lua/dtest/session.lua   the model: the queue of runs, the batch, the logs
 lua/dtest/tree.lua      solution → project → class → method → case nodes
+lua/dtest/context.lua   reading a source buffer: its classes, the test at the cursor
 lua/dtest/dotnet/       the CLI: solutions, --list-tests, runs, TRX, filters, source lookup
 lua/dtest/ui/           the panes: windows, rendering, highlights, the filter prompt
 ```

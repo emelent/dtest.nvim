@@ -28,6 +28,14 @@ vim.api.nvim_create_user_command('DtestRunFailed', function()
   require('dtest').run_failed()
 end, { desc = 'Re-run the tests that failed last time' })
 
+vim.api.nvim_create_user_command('DtestFile', function(cmd)
+  require('dtest').run_file({ focus = cmd.bang })
+end, { bang = true, desc = "Run the tests in this buffer's file (! shows the panes)" })
+
+vim.api.nvim_create_user_command('DtestNearest', function(cmd)
+  require('dtest').run_nearest({ focus = cmd.bang })
+end, { bang = true, desc = 'Run the test the cursor is on (! shows the panes)' })
+
 vim.api.nvim_create_user_command('DtestReload', function()
   require('dtest').reload()
 end, { desc = 'Rebuild and list the tests again' })

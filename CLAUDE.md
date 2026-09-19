@@ -34,6 +34,11 @@ The dependency direction is one way: `ui` → `session` → `tree`, `dotnet`.
   method → case**. The root is a real node standing for the solution, so
   `node:project()` returns nil for it and callers must handle that. Status,
   counts and duration roll up from the leaves.
+- **`lua/dtest/context.lua`** reads a source buffer: the classes it
+  declares and which test the cursor is in. It never decides what a method
+  is on its own — candidate names come from what dotnet listed — and it
+  only ever looks at declarations, which is what keeps a call to another
+  test from answering for it.
 - **`lua/dtest/session.lua`** is the model: the queue of runs, the batch the
   summary reports on, the raw output of each run. It knows nothing about
   windows; it calls `on_change` and the UI decides when to draw.
@@ -57,6 +62,19 @@ keeps the cursor and the view still.
 A solution-wide run writes one .trx per project, so the trx logger is used
 without `LogFileName` and every file in the results directory is read.
 Naming them all the same leaves only the last project's messages.
+
+### Running from a source buffer
+
+`run_file` and `run_nearest` in `init.lua` read the buffer **before**
+opening the panes, since opening them moves the cursor to another window.
+They go through `Session:when_listed`, because the listing they need is
+started by the very call that opens the panes; anything waiting is let
+through when `loading` reaches zero.
+
+`ui.ensure_open` deliberately does not take focus, and
+`session.on_batch_end` echoes the outcome when the dtest tab is not the one
+being looked at, since otherwise a run started from the code reports into
+a window nobody can see.
 
 ### Keys go through actions
 

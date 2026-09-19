@@ -3,6 +3,7 @@
 -- nothing about windows; it calls on_change when something it holds has
 -- moved, and the UI decides when to draw.
 local config = require('dtest.config')
+local context = require('dtest.context')
 local dotnet_run = require('dtest.dotnet.run')
 local solution = require('dtest.dotnet.solution')
 local source = require('dtest.dotnet.source')
@@ -51,12 +52,40 @@ function M.new(target, opts)
     status_filter = nil,
     show_output = false,
     locations = {},
+    ready = {}, -- waiting for the first listing to finish
     on_change = function() end,
+    on_batch_end = function() end,
   }, Session)
 end
 
 function Session:changed()
   self.on_change()
+end
+
+--- Reports whether the tree holds what dotnet listed, so a caller can
+--- look a test up in it.
+function Session:listed()
+  return not self.building and self.loading == 0 and #self.tree.projects > 0
+end
+
+--- Calls fn once the tests have been listed, or now when they already
+--- have been. A run asked for from a source buffer arrives before the
+--- listing it needs, since opening the panes is what starts it.
+function Session:when_listed(fn)
+  if self:listed() then
+    fn()
+    return
+  end
+  table.insert(self.ready, fn)
+end
+
+-- Lets through whatever was waiting for the listing.
+function Session:flush_ready()
+  local waiting = self.ready
+  self.ready = {}
+  for _, fn in ipairs(waiting) do
+    fn()
+  end
 end
 
 --- Reports whether dotnet is doing something on our behalf.
@@ -90,6 +119,7 @@ end
 function Session:start()
   local projects, err = solution.projects(self.target)
   if not projects then
+    self.ready = {} -- nothing to wait for any more
     self:notify(err, true)
     return
   end
@@ -157,6 +187,7 @@ function Session:list_all()
         else
           self.tree:set_tests(project, names)
         end
+        if self.loading == 0 then self:flush_ready() end
         self:changed()
         next_project()
       end,
@@ -339,6 +370,7 @@ function Session:finish(req, results, err)
   end
   if #self.queue == 0 then
     self.batch_end = vim.uv.hrtime()
+    self.on_batch_end(self:batch_counts())
     -- Nothing is running or waiting any more, so nothing may still look
     -- like it is: a relist during a run leaves nodes behind that the run
     -- itself can no longer clear.
@@ -403,6 +435,99 @@ end
 function Session:shutdown()
   self.queue = {}
   if self.run then self.run.handle.cancel() end
+end
+
+-- Finding the tests a source file holds.
+
+--- The project whose directory holds path, the deepest one when they nest.
+function Session:project_for(path)
+  local best, longest
+  for _, project in ipairs(self.tree.projects) do
+    local dir = vim.fs.dirname(project.path) .. '/'
+    if path:sub(1, #dir) == dir and (not best or #dir > longest) then
+      best, longest = project, #dir
+    end
+  end
+  return best
+end
+
+-- Generic classes are listed with their arity ("Name`1"); the source says
+-- only the name.
+local function without_arity(fqn)
+  return (fqn:gsub('`%d+', ''))
+end
+
+-- The class nodes a file could be declaring: the ones of the project that
+-- holds it, or of every project when it lies outside them all.
+local function class_nodes(self, path)
+  local scope = self:project_for(path)
+  local out = {}
+  for _, project in ipairs(scope and { scope } or self.tree.projects) do
+    for _, node in ipairs(tree.collect(project)) do
+      if node.kind == 'class' then out[#out + 1] = node end
+    end
+  end
+  return out
+end
+
+-- The node for a class the source declares: the same fully qualified name,
+-- or failing that the same simple name, since a file's namespace can be
+-- split over partials and Directory.Build props.
+local function match_class(nodes, class)
+  for _, node in ipairs(nodes) do
+    if without_arity(node.fqn) == class.fqn then return node end
+  end
+  local simple = source.simple_class_name(class.fqn)
+  for _, node in ipairs(nodes) do
+    if source.simple_class_name(without_arity(node.fqn)) == simple then return node end
+  end
+  return nil
+end
+
+--- The class nodes the file at path declares, in the order it declares
+--- them.
+--- @return table[] nodes, string|nil why there are none
+function Session:classes_in(path, lines)
+  local declared = context.classes(lines)
+  if #declared == 0 then
+    return {}, 'No test class in ' .. vim.fs.basename(path)
+  end
+  local nodes = class_nodes(self, path)
+  local found, seen = {}, {}
+  for _, class in ipairs(declared) do
+    local node = match_class(nodes, class)
+    if node and not seen[node] then
+      seen[node] = true
+      found[#found + 1] = node
+    end
+  end
+  if #found == 0 then
+    return {}, 'No listed tests in ' .. vim.fs.basename(path)
+  end
+  return found
+end
+
+--- The node for the test the cursor is on: the method, or the class it is
+--- in when the cursor is above the first test.
+--- @return table|nil node, string|nil why there is none
+function Session:node_at(path, lines, row)
+  local class = context.class_at(lines, row)
+  if not class then
+    return nil, 'No test class in ' .. vim.fs.basename(path)
+  end
+  local node = match_class(class_nodes(self, path), class)
+  if not node then
+    return nil, 'No listed tests in ' .. class.name
+  end
+  local names = {}
+  for _, child in ipairs(node.children) do
+    if child.kind == 'method' then names[child.name] = true end
+  end
+  local method = context.method_at(lines, row, names)
+  for _, child in ipairs(node.children) do
+    if child.name == method then return child end
+  end
+  return node -- above the first test: the class is what the cursor is on
 end
 
 -- Source positions.

@@ -30,11 +30,22 @@ local function fixture()
       '<Project><ItemGroup><PackageReference Include="xunit" /></ItemGroup></Project>')
   end
   write(dir .. '/tests/' .. API .. '/RateLimitMiddlewareTests.cs', table.concat({
-    'namespace Shop.Api.Tests.Middleware;',
-    'public class RateLimitMiddlewareTests',
-    '{',
-    '    [Fact] public void OverLimit_Returns429() { }',
-    '}',
+    'namespace Shop.Api.Tests.Middleware;', -- 1
+    '',                                     -- 2
+    'public class RateLimitMiddlewareTests', -- 3
+    '{',                                    -- 4
+    '    [Fact]',                           -- 5
+    '    public void UnderLimit_Passes()',  -- 6
+    '    {',                                -- 7
+    '        Assert.True(true);',           -- 8
+    '    }',                                -- 9
+    '',                                     -- 10
+    '    [Fact]',                           -- 11
+    '    public void OverLimit_Returns429()', -- 12
+    '    {',                                -- 13
+    '        Assert.Equal(429, 428);',      -- 14
+    '    }',                                -- 15
+    '}',                                    -- 16
   }, '\n'))
   return write(dir .. '/Shop.slnx', string.format(
     '<Solution><Project Path="tests/%s/%s.csproj" /><Project Path="tests/%s/%s.csproj" /></Solution>',
@@ -383,6 +394,65 @@ return {
       return s and not s:busy() and s.tree:counts().total == 4
     end, 'the tests to be listed')
     t.eq(target, ui.session().target)
+    close()
+  end },
+
+  { 'runs the tests of the file in the buffer, without leaving it', function()
+    open()
+    vim.cmd('tabnew ' .. vim.fn.fnameescape(commands.source))
+    require('dtest').run_file({})
+    run_and_wait()
+    t.matches('RateLimitMiddlewareTests%.cs$', vim.api.nvim_buf_get_name(0),
+      'the cursor stays in the code the run came from')
+    t.eq('FullyQualifiedName~Shop.Api.Tests.Middleware.RateLimitMiddlewareTests.',
+      arg_of(commands[#commands], '--filter'))
+    t.ok(t.find_line(t.lines('tree'), 'OverLimit_Returns429'), 'the tree opens on what ran')
+    vim.cmd('tabclose')
+    close()
+  end },
+
+  { 'runs the test the cursor is on', function()
+    open()
+    vim.cmd('tabnew ' .. vim.fn.fnameescape(commands.source))
+    require('dtest').run_nearest({ line = 13 }) -- inside OverLimit_Returns429
+    run_and_wait()
+    t.eq('FullyQualifiedName=Shop.Api.Tests.Middleware.RateLimitMiddlewareTests.OverLimit_Returns429',
+      arg_of(commands[#commands], '--filter'))
+
+    vim.api.nvim_win_set_cursor(0, { 6, 0 }) -- the other test, from the real cursor
+    require('dtest').run_nearest()
+    run_and_wait()
+    t.eq('FullyQualifiedName=Shop.Api.Tests.Middleware.RateLimitMiddlewareTests.UnderLimit_Passes',
+      arg_of(commands[#commands], '--filter'))
+    vim.cmd('tabclose')
+    close()
+  end },
+
+  { 'reads an attribute line as the test under it, and the class above them all', function()
+    open()
+    vim.cmd('tabnew ' .. vim.fn.fnameescape(commands.source))
+    require('dtest').run_nearest({ line = 11 }) -- the [Fact] over OverLimit
+    run_and_wait()
+    t.eq('FullyQualifiedName=Shop.Api.Tests.Middleware.RateLimitMiddlewareTests.OverLimit_Returns429',
+      arg_of(commands[#commands], '--filter'))
+
+    require('dtest').run_nearest({ line = 1 }) -- above the first test
+    run_and_wait()
+    t.eq('FullyQualifiedName~Shop.Api.Tests.Middleware.RateLimitMiddlewareTests.',
+      arg_of(commands[#commands], '--filter'), 'the class is what the cursor is on')
+    vim.cmd('tabclose')
+    close()
+  end },
+
+  { 'says so when a buffer holds no tests it knows', function()
+    local s = open()
+    local ran = #commands
+    vim.cmd('tabnew ' .. vim.fn.fnameescape(vim.fs.dirname(s.target) .. '/Program.cs'))
+    vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'public class Program { static void Main() {} }' })
+    require('dtest').run_file({})
+    t.matches('No listed tests', s.message.text)
+    t.eq(ran, #commands, 'and runs nothing')
+    vim.cmd('tabclose!')
     close()
   end },
 

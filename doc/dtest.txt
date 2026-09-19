@@ -58,6 +58,17 @@ No other plugins are needed.
                                                              *:DtestRunFailed*
 :DtestRunFailed         Re-run the tests that failed last time.
 
+                                                                  *:DtestFile*
+:DtestFile[!]           Run every test the file in the current buffer
+                        declares. Focus stays in the buffer and the outcome
+                        is echoed when the run ends; with !, the panes are
+                        shown instead. See |dtest-from-source|.
+
+                                                               *:DtestNearest*
+:DtestNearest[!]        Run the test the cursor is in. Above the first test
+                        of a class, the class is what runs. With !, the
+                        panes are shown. See |dtest-from-source|.
+
                                                                 *:DtestReload*
 :DtestReload            Rebuild and list the tests again.
 
@@ -134,6 +145,33 @@ tree pane alone, so the log keeps Neovim's search and motions.
 the log line under the cursor when it is a stack frame, else a failed
 test's failing line, else the declaration of what is selected, found by
 scanning the project's sources.
+
+                                                          *dtest-from-source*
+Running from the file you are editing ~
+
+|:DtestFile| and |:DtestNearest| work from a source buffer rather than from
+the tree.
+
+:DtestNearest takes the nearest test declaration at or above the cursor. An
+attribute line counts as part of the test under it, so [Fact] and [Theory]
+do the expected thing; above the first test of a class, the class runs. A
+theory runs all of its rows, a single row having no name of its own.
+
+Which tests a buffer holds is worked out from the classes it declares and
+the names dotnet already listed, so a helper or a call to another test is
+never mistaken for one. The buffer is read, not the file on disk.
+
+Neither command takes focus: the panes open in their own tab if they were
+closed, the cursor stays in the code, and the outcome is echoed when the
+run ends. With ! (or `focus = true`) you are taken to the panes. Either
+way the tree opens on whatever ran.
+>lua
+    vim.keymap.set('n', '<leader>tt', function() require('dtest').run_nearest() end)
+    vim.keymap.set('n', '<leader>tf', function() require('dtest').run_file() end)
+<
+When the panes are closed and nothing is configured, these look for a
+solution in the working directory first and then upwards from the file
+itself, so they work from a buffer whose project is nowhere near it.
 
 ==============================================================================
 7. CONFIGURATION                                         *dtest-configuration*
