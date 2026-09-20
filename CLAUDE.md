@@ -44,6 +44,10 @@ The dependency direction is one way: `ui` → `session` → `tree`, `dotnet`.
   plugin depends on a plugin, and this must not either — every call into
   Snacks is behind a `pcall`, and a picker that will not open falls back
   rather than failing.
+- **`lua/dtest/prewarm.lua`** lists the tests before anyone asks, at
+  `VimEnter`, and hands the session it built to `ui.open`. It is quiet
+  about everything: no panes, no messages, and nothing at all when there
+  is no solution to be found, since most editors are not opened on one.
 - **`lua/dtest/session.lua`** is the model: the queue of runs, the batch the
   summary reports on, the raw output of each run. It knows nothing about
   windows; it calls `on_change` and the UI decides when to draw.
@@ -149,6 +153,21 @@ in this code — the tab switch (`ui.focus`) and the zoom that `i` does
 That unfolding would be undone seconds later by `fold_by_result`, so these
 runs are enqueued with `{ keep_open = true }`, which holds the folds for
 that batch only (`Session.keep_open`, cleared when the queue empties).
+
+### Listing ahead of time
+
+What `prewarm` prepares is a real `Session`, not a cache, so `ui.open`
+takes it over rather than copying out of it — a listing still going when
+the panes open is shown filling in. `take` is the only way to get it, and
+it refuses what no longer fits: another target, or options changed since,
+which happens because a lazily loaded plugin runs `setup()` after
+`plugin/dtest.lua` is sourced. A `BufWritePost` on a source or project
+file only marks the listing **stale**; it is not redone until the panes
+open, and then over the tree already there, which stays readable
+meanwhile.
+
+`plugin/dtest.lua` starts it at `VimEnter`, or right away when the file is
+sourced later than that, as it is when lazily loaded.
 
 ### Keys go through actions
 

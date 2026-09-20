@@ -73,14 +73,10 @@ function M.run_failed()
   session:when_listed(function() ui.actions['run-failed']() end)
 end
 
--- What to open for a file when nothing is configured: the working
--- directory first, so :Dtest and these agree, and failing that whatever
--- sits above the file itself.
+-- What to open for a file: the configured target, the working directory,
+-- or whatever sits above the file itself.
 local function target_for(path)
-  local solution = require('dtest.dotnet.solution')
-  if config.options.target then return config.options.target end
-  if solution.find_target(vim.uv.cwd()) then return nil end -- open() finds it
-  return solution.find_upward(vim.fs.dirname(path))
+  return require('dtest.dotnet.solution').find_for(path)
 end
 
 -- Runs whatever pick makes of the buffer. The buffer is read before the
@@ -203,6 +199,13 @@ end
 function M.folders()
   local session = require('dtest.ui').session()
   return session and session:folders() or {}
+end
+
+--- Lists the tests in the background, so that opening the panes later is
+--- instant. Called for you when Neovim opens on a .NET project; calling
+--- it again while one is prepared does nothing.
+function M.prewarm()
+  require('dtest.prewarm').start()
 end
 
 --- Rebuilds and lists the tests again.

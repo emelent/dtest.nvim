@@ -211,6 +211,7 @@ return {
   -- Whatever a case leaves behind, the next one starts from nothing open.
   after_each = function()
     ui.close()
+    require('dtest.prewarm').discard()
     t.restore_dotnet()
     config.setup({})
   end,
@@ -788,6 +789,105 @@ return {
     t.eq(t.pane_buf('tree'), vim.api.nvim_get_current_buf())
     run_and_wait()
     close()
+  end },
+
+  { 'opens on a listing made before it was asked for', function()
+    commands = {}
+    config.setup({ no_build = true })
+    stub()
+    local target = fixture()
+    config.options.target = target
+    require('dtest').prewarm()
+    local prewarm = require('dtest.prewarm')
+    t.wait(function()
+      local s = prewarm.session()
+      return s and s:listed() and s.tree:counts().total == 6
+    end, 'the background listing to finish')
+    local listed = #commands
+
+    ui.open(target)
+    t.ok(ui.session(), 'the panes took what was prepared')
+    t.eq(6, ui.session().tree:counts().total, 'with the tests already in it')
+    t.eq(listed, #commands, 'and dotnet was not asked again')
+    t.eq(false, require('dtest.prewarm').pending(), 'nothing is held back')
+    close()
+  end },
+
+  { 'lists again when something was saved since', function()
+    commands = {}
+    config.setup({ no_build = true })
+    stub()
+    local target = fixture()
+    config.options.target = target
+    require('dtest').prewarm()
+    t.wait(function()
+      local s = require('dtest.prewarm').session()
+      return s and s:listed()
+    end, 'the background listing to finish')
+    -- A test was edited while the panes were closed.
+    vim.api.nvim_exec_autocmds('BufWritePost', { pattern = 'RateLimitMiddlewareTests.cs' })
+
+    ui.open(target)
+    t.wait(function() return #commands > 2 end, 'the listing to be done again')
+    t.eq(6, ui.session().tree:counts().total)
+    close()
+  end },
+
+  { 'keeps a listing made for another solution out of it', function()
+    commands = {}
+    config.setup({ no_build = true })
+    stub()
+    local elsewhere = fixture()
+    config.options.target = elsewhere
+    require('dtest').prewarm()
+    t.wait(function()
+      local s = require('dtest.prewarm').session()
+      return s and s:listed()
+    end, 'the other solution to be listed')
+
+    local target = fixture() -- a different one, opened by hand
+    commands.source = vim.fs.dirname(target) .. '/tests/' .. API .. '/RateLimitMiddlewareTests.cs'
+    ui.open(target)
+    t.eq(target, ui.session().target)
+    t.wait(function() return ui.session():listed() end, 'its own listing')
+    t.eq(6, ui.session().tree:counts().total)
+    close()
+  end },
+
+  { 'prepares nothing when it is turned off, or when there is nothing to test', function()
+    local prewarm = require('dtest.prewarm')
+    config.setup({ prewarm = false, target = fixture() })
+    stub()
+    prewarm.start()
+    t.eq(false, prewarm.pending())
+    config.setup({ prewarm = true, target = vim.fn.tempname() .. '/Nothing.slnx' })
+    prewarm.start()
+    t.eq(false, prewarm.pending(), 'a target that is not there prepares nothing')
+    config.setup({})
+  end },
+
+  { 'drops a listing made under options since changed', function()
+    commands = {}
+    config.setup({ no_build = true })
+    stub()
+    local target = fixture()
+    config.options.target = target
+    require('dtest').prewarm()
+    t.wait(function()
+      local s = require('dtest.prewarm').session()
+      return s and s:listed()
+    end, 'the background listing to finish')
+    -- setup() ran late, as it does for a lazily loaded plugin, and asked
+    -- for another build configuration than the listing was made under.
+    config.options.configuration = 'Release'
+
+    ui.open(target)
+    t.eq(false, require('dtest.prewarm').pending(), 'what was prepared is let go')
+    t.eq('Release', ui.session().opts.configuration, 'and the session is a fresh one')
+    t.wait(function() return ui.session():listed() end, 'its own listing')
+    t.eq(6, ui.session().tree:counts().total)
+    close()
+    config.setup({})
   end },
 
   { 'binds the keys the config names', function()

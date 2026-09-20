@@ -476,7 +476,11 @@ function M.open(target)
 
   local wins, direction = build_windows(origin, bufs)
 
-  local session = session_mod.new(target, {
+  -- Whatever was listed in the background while this was not open is the
+  -- session, rather than the start of a second one.
+  local session, stale = require('dtest.prewarm').take(target)
+  local prepared = session ~= nil
+  session = session or session_mod.new(target, {
     configuration = opts.configuration,
     no_build = opts.no_build,
   })
@@ -516,7 +520,13 @@ function M.open(target)
 
   vim.api.nvim_set_current_win(wins.tree)
   M.render()
-  session:start()
+  if not prepared then
+    session:start()
+  elseif stale then
+    -- Something was saved since it listed, so it is listed again — over
+    -- the tree that is already there, which stays readable meanwhile.
+    session:when_listed(function() session:reload() end)
+  end
 end
 
 --- Takes the panes off the screen without giving up the session: the

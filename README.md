@@ -124,6 +124,8 @@ selection to keep track of.
   root of the tree, drawn flush, and from then on the plugin behaves as
   though its tests were the only ones, down to what `A` runs and where `n`
   looks for the next failure. `I` steps back out one level.
+- The tests are listed in the background when Neovim opens on a .NET
+  project, so the panes come up with the tree already in them
 
 ## Requirements
 
@@ -188,7 +190,28 @@ the commands still work.
 The same from Lua: `require('dtest').open(target)`, `.toggle()`,
 `.hide()`, `.show(opts)`, `.close()`, `.run_all()`, `.run_failed()`,
 `.run_file(opts)`, `.run_nearest(opts)`, `.run_folder(opts)`, `.reload()`,
-`.is_open()`, `.has_session()`.
+`.is_open()`, `.has_session()`, `.prewarm()`.
+
+### Ready before you ask for it
+
+Listing the tests of a solution takes a few seconds, and they are the same
+few seconds every time the panes open. So when Neovim starts in something
+with tests in it, the listing is done then — one build and one
+`dotnet test --list-tests` per project, in the background, with no panes,
+no messages and nothing on the screen to say so. By the time `:Dtest` is
+typed the tree is usually already built, and the panes simply show it.
+
+It is the very session the panes then take over, not a cache: a listing
+still going when they open is shown filling in, exactly as it would have
+been. If a `.cs`, `.fsproj`, `.sln` or the like was written since — a test
+may have been added or renamed — the listing is done again on opening,
+over the tree already there, which stays readable meanwhile. Nothing is
+prepared when there is no solution or project to be found, which is most
+editors most of the time, and `prewarm = false` turns it off outright.
+
+`:Dtest` on some other solution than the one prepared for drops what was
+prepared and lists that one instead, and so does a `setup()` that arrives
+late with a different build configuration.
 
 ### Hiding, and coming back
 
@@ -356,6 +379,8 @@ require('dtest').setup({
   configuration = nil,   -- build configuration passed to dotnet (-c)
   no_build = false,      -- never build; list and run against existing binaries
   build_on_open = true,  -- build once when the panes open
+  prewarm = true,        -- list the tests in the background when Neovim
+                         -- opens on a project, so the panes come up ready
 
   layout = {
     direction = 'auto',  -- 'auto' | 'vertical' (stacked) | 'horizontal' (side by side)

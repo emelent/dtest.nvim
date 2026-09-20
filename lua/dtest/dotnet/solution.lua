@@ -42,6 +42,24 @@ function M.find_target(dir)
   return vim.fs.joinpath(dir, pick)
 end
 
+--- What to test for a buffer: the configured target, else whatever the
+--- working directory holds, else the nearest thing above the file itself,
+--- so a project nowhere near the working directory is still found.
+--- @param path string|nil the file being edited
+--- @return string|nil target
+function M.find_for(path)
+  local configured = require('dtest.config').options.target
+  if configured and configured ~= '' then
+    return vim.fn.fnamemodify(vim.fs.normalize(configured), ':p'):gsub('/$', '')
+  end
+  local here = M.find_target(vim.uv.cwd())
+  if here then return here end
+  if path and path ~= '' then
+    return M.find_upward(vim.fs.dirname(path))
+  end
+  return nil
+end
+
 --- Walks up from dir looking for something to test, for when the working
 --- directory holds nothing but the file being edited does sit inside a
 --- project. The nearest one wins.

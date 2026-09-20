@@ -4,6 +4,25 @@ if vim.g.loaded_dtest then
 end
 vim.g.loaded_dtest = true
 
+-- Listing the tests takes a few seconds, so it starts as soon as Neovim
+-- has something to sit in: at VimEnter, or right away when this file is
+-- only sourced later, as a lazily loaded plugin is.
+local function prewarm()
+  vim.defer_fn(function()
+    pcall(function() require('dtest').prewarm() end)
+  end, 200)
+end
+
+if vim.v.vim_did_enter == 1 then
+  prewarm()
+else
+  vim.api.nvim_create_autocmd('VimEnter', {
+    group = vim.api.nvim_create_augroup('dtest.start', { clear = true }),
+    once = true,
+    callback = prewarm,
+  })
+end
+
 local function complete(arg)
   return vim.fn.getcompletion(arg, 'file')
 end

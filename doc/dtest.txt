@@ -13,6 +13,7 @@ CONTENTS                                                      *dtest-contents*
     7. Configuration ......................... |dtest-configuration|
     8. Highlights ............................ |dtest-highlights|
     9. How runs work ......................... |dtest-runs|
+   10. Listing ahead of time ................ |dtest-prewarm|
 
 ==============================================================================
 1. INTRODUCTION                                           *dtest-introduction*
@@ -101,6 +102,8 @@ require('dtest').close()                |:DtestClose|
 require('dtest').run_all()              |:DtestRun|
 require('dtest').run_failed()           |:DtestRunFailed|
 require('dtest').reload()               |:DtestReload|
+require('dtest').prewarm()              list the tests in the background,
+                        so the panes open ready. |dtest-prewarm|
 require('dtest').is_open()              Whether the panes are on screen.
 require('dtest').has_session()          Whether there is a session at all,
                         shown or hidden.
@@ -256,6 +259,7 @@ itself, so they work from a buffer whose project is nowhere near it.
       configuration = nil,   -- build configuration passed to dotnet (-c)
       no_build = false,      -- list and run against existing binaries
       build_on_open = true,  -- build once when the panes open
+      prewarm = true,        -- list in the background at startup
       layout = {
         direction = 'auto',  -- 'auto' | 'vertical' | 'horizontal'
         position = 'auto',   -- 'auto' | 'right' | 'left' | 'below' | 'above'
@@ -318,5 +322,28 @@ Results arrive twice over: from the console logger line by line as they
 happen, and in full — messages, stack traces, captured output — from the
 .trx files the run leaves behind. A test that was never listed still
 appears, filed under the project whose name its own prefixes.
+
+==============================================================================
+10. LISTING AHEAD OF TIME                                      *dtest-prewarm*
+
+Listing takes a few seconds, and they are the same few seconds every time
+the panes open. So when Neovim starts in something with tests in it, the
+listing is done then: one build and one `dotnet test --list-tests` per
+project, in the background, with no panes, no messages and nothing on the
+screen to say so. By the time |:Dtest| is typed the tree is usually
+already built, and the panes simply show it.
+
+It is the very session the panes take over, not a cache. A listing still
+going when they open is shown filling in, exactly as it would have been.
+
+The listing is done again, over the tree already there, when a file that
+could have added or renamed a test (`*.cs`, `*.fs`, `*.vb`, `*.csproj`,
+`*.fsproj`, `*.vbproj`, `*.sln`, `*.slnx`) was written since. What was
+prepared is dropped instead when |:Dtest| names another solution, or when
+a late |dtest.setup()| asks for a different build configuration.
+
+Nothing is prepared when no solution or project can be found, which is
+most editors most of the time. `prewarm = false` turns it off outright;
+`require('dtest').prewarm()` starts it by hand.
 
 vim:tw=78:ts=8:ft=help:norl:

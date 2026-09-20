@@ -11,6 +11,9 @@ M.defaults = {
   configuration = nil, -- build configuration passed to dotnet (-c)
   no_build = false,    -- never build; list and run against existing binaries
   build_on_open = true,
+  -- List the tests in the background when Neovim opens on a .NET project,
+  -- so that opening the panes later is instant rather than a wait.
+  prewarm = true,
 
   layout = {
     -- Which way round the panes go: 'vertical' stacks the log over the
