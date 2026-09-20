@@ -1,4 +1,4 @@
-*dtest.txt*  Run .NET tests from Neovim, in the style of vitest
+*dtest.txt*  Run .NET tests from Neovim, as a tree over a log
 
                                                         *dtest* *dtest.nvim*
 ==============================================================================
@@ -19,13 +19,9 @@ CONTENTS                                                      *dtest-contents*
 1. INTRODUCTION                                           *dtest-introduction*
 
 dtest.nvim runs the tests of a .NET solution or project from inside Neovim
-and shows them as a tree over a log, the way vitest does. It drives the
-`dotnet` CLI: it builds the target once, lists every test with
-`dotnet test --list-tests`, and runs whatever the tree selects while the
-panes update live.
-
-It is a port of the dtest terminal app, and keeps its layout, its keys and
-its colours.
+and shows them as a tree over a log. It drives the `dotnet` CLI: it builds
+the target once, lists every test with `dotnet test --list-tests`, and runs
+whatever the tree selects while the panes update live.
 
 ==============================================================================
 2. REQUIREMENTS                                           *dtest-requirements*

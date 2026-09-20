@@ -1,13 +1,8 @@
 # dtest.nvim
 
-Run the tests of a .NET solution or project from Neovim, with a UI in the
-spirit of vitest. It is a Lua port of [dtest](../dtest), the terminal app:
-the same two panes, the same tree, the same colours and the same keys, but
-inside the editor, so opening the source of a failing test is a keystroke
-rather than a hand-off.
-
-It drives the `dotnet` CLI: builds once, lists every test, and runs
-whatever the tree selects while the screen updates live.
+Run the tests of a .NET solution or project from Neovim: a tree of tests
+over a log of results. It drives the `dotnet` CLI — builds once, lists every
+test, runs whatever the tree selects, and updates live while it goes.
 
 ```
 ⎯⎯ Log  Shop.Api.Tests › Middleware.RateLimitMiddlewareTests › OverLimit_Returns429 ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
@@ -19,17 +14,12 @@ Expected: 429
 Actual:   428
  ❯ tests/Shop.Api.Tests/Middleware/RateLimitMiddlewareTests.cs:12
 
-  Stack trace
-   at Shop.Api.Tests.Middleware.RateLimitMiddlewareTests.OverLimit_Returns429() in …:line 12
-
 ⎯⎯ Tests ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
   ▾ Shop (2 projects | 49 tests)
   ├─ ▾ Shop.Api.Tests (16 tests | 2 failed | 1 skipped) 0.82s
   │  ├─ ▾ Controllers.OrdersControllerTests (3 tests | 1 failed) 0.005s
   │  │  ├─ × Get_Paginates 0.000s
-  │  │  ├─ ✓ Post_CreatesOrder 0.000s
-  │  │  └─ ✓ Post_EmptyBody_Returns400 0.003s
-  │  ├─ ▸ Controllers.ProductsControllerTests (4 tests) 0.004s
+  │  │  └─ ✓ Post_CreatesOrder 0.000s
   │  ├─ ▸ Integration.CheckoutFlowTests (2 tests | 1 skipped) 0.804s
   │  └─ ▾ Middleware.RateLimitMiddlewareTests (2 tests | 1 failed) 0.003s
   │     ├─ × OverLimit_Returns429 0.001s
@@ -40,11 +30,60 @@ Actual:   428
  4 failed | 43 passed | 2 skipped
 ```
 
-## Layout
+## Requirements
 
-`:Dtest` opens beside the window you are in, so the code stays on screen.
-Which way round the panes go follows the shape of the space they are
-given, and is re-checked when the terminal is resized:
+- Neovim 0.10 or newer (0.11 is what it is developed against)
+- The `dotnet` SDK on your `PATH`, with test projects using the VSTest runner
+  (`Microsoft.NET.Test.Sdk` with xUnit, NUnit or MSTest)
+
+No other plugins, and nothing to compile. [Snacks](https://github.com/folke/snacks.nvim)
+is used for the `:DtestFolder` list when it happens to be installed; without
+it the choice goes through `vim.ui.select`.
+
+## Install
+
+With [lazy.nvim](https://github.com/folke/lazy.nvim):
+
+```lua
+{ 'emelent/nvim-dtest', event = 'VeryLazy', opts = {} }
+```
+
+With [packer](https://github.com/wbthomason/packer.nvim):
+
+```lua
+use { 'emelent/nvim-dtest', config = function() require('dtest').setup({}) end }
+```
+
+`setup()` is optional: without it the defaults stand and the commands still
+work. Load at startup or on `VeryLazy` rather than on `cmd` — the tests are
+listed in the background as soon as the plugin is sourced, and loading on a
+command starts that listing at the moment you asked for the panes, which is
+the wait it exists to remove.
+
+## Commands
+
+| Command | What it does |
+| --- | --- |
+| `:Dtest [target]` | Open the panes for a solution or project file, for a directory, or for whatever the working directory holds |
+| `:DtestToggle` | Show the panes, or hide them when they are up, keeping the session |
+| `:DtestClose` | End the session: stop whatever dotnet is doing and give up the results |
+| `:DtestRun` | Open if needed, then run every test |
+| `:DtestRunFailed` | Re-run the tests that failed last time |
+| `:DtestFile[!]` | Run the tests in the file you are editing |
+| `:DtestNearest[!]` | Run the test the cursor is on |
+| `:DtestFolder[!] [path]` | Run a folder of tests, choosing which from a fuzzy list |
+| `:DtestReload` | Rebuild and list the tests again |
+
+`!` takes you to the panes; without it you stay where you are. The same from
+Lua: `require('dtest').open(target)`, `.toggle()`, `.hide()`, `.show(opts)`,
+`.close()`, `.run_all()`, `.run_failed()`, `.run_file(opts)`,
+`.run_nearest(opts)`, `.run_folder(opts)`, `.reload()`, `.prewarm()`,
+`.is_open()`, `.has_session()`.
+
+## The panes
+
+Three windows beside the window you were in, so the code stays on screen.
+Which way round they go follows the shape of the space, re-checked on resize:
 
 ```
 wide space                          tall space
@@ -57,317 +96,103 @@ wide space                          tall space
                                     └───────────────────────┘
 ```
 
-A terminal cell is about twice as tall as it is wide, so "wide" means
-comfortably past square: once the space is at least 2.5 columns per line,
-the tree takes the left 30% and the log the right 70%; otherwise the log
-takes the top 70% and the tree the bottom 30%. The summary spans both
-either way. `layout.direction` pins one of them if you would rather not
-have it decided for you.
+- **Log** (70%) — the results of whatever the tree selects: verdict,
+  message, failing location, stack trace and captured output for a test;
+  every failure beneath it for a group. Build errors first. It is an
+  ordinary buffer, so `/`, `n`, `V` and `y` work as they always do. `v`
+  swaps in the raw `dotnet` output of the selected project.
+- **Tests** (30%) — projects, classes, methods and theory rows under a root
+  standing for the solution, with counts and durations rolled up. Projects
+  start collapsed. After a run, passing classes fold away and failing ones
+  open; a project is never folded shut under you.
+- **Summary** (two lines, spanning both) — what the batch was and how it
+  went, counted in live and keeping one shape from first result to last.
+  Messages take the upper line while there is something to say.
 
-The panes themselves are carved out of the window `:Dtest` was called
-from: beside it when that window is wide, under it when it is not. Beside
-it they take a fifth of it, the way a sidebar does, and under it two
-thirds, there being no code alongside to crowd; either way never so little
-that they cannot be read. `layout.position` and `layout.size` say
-otherwise — `size = 0.35` for a wider column, say. `<C-j>` / `<C-k>` or `<Tab>` move between the two panes; `q`
-closes them and puts you back where you started.
-
-- **Log** (the larger pane, 70%) shows the results of whatever the tree
-  selects. For a test: its verdict, message (expected values green,
-  actual values red), failing location, stack trace and captured output.
-  For the solution, a project, a class or a theory: every failure beneath
-  it, without the tally, which the tree row it was selected from already
-  carries. Build errors show first. It is an ordinary buffer, so `j`/`k`,
-  `gg`/`G`, `/` and `n` work as they always do, and `V` then `y` yanks
-  lines out of a stack trace into your own register. `v` swaps in the raw
-  `dotnet` output of the selected project, coloured by kind.
-- **Tests** (the other 30%) is the tree of projects, classes, methods and
-  theory rows under a root that stands for the solution itself, drawn with branch
-  lines (`├─`, `└─`, `│`) so the nesting reads at a glance, with
-  vitest-style counts and durations on every group. The root's own row just
-  says what the solution holds, `2 projects | 49 tests`; selecting it shows
-  the whole solution at once and running it runs `dotnet test` over the
-  solution in one go. Projects start collapsed, so a fresh tree is a list
-  of them. After a run, passing classes fold to one line and failing ones
-  open, and a project is only ever opened by that, never folded shut under
-  you.
-- **Summary** (two lines along the bottom, spanning both panes) says what
-  the batch was, `Ran 49 tests
-  in 2.1s at 23:37:56`, and under it how it went, `4 failed | 43 passed |
-  2 skipped`. It counts results in live and keeps that one shape from the
-  first to the last, so the lines settle rather than changing form when the
-  batch ends, and an outcome still at zero is greyed rather than missing.
-  What dtest is doing, and anything it has to say, takes the first of those
-  lines while there is something to say, leaving the outcomes on the one
-  below.
-
-Moving the cursor in the tree is what changes the log: there is no separate
-selection to keep track of.
-
-## Features
-
-- Run the selected root, project, class, method or test; `A` and running
-  the root both run the whole solution in one `dotnet test`, `F` re-runs
-  only what failed; anything smaller is one `dotnet test` per project, and
-  runs queue up
-- Live status while tests run: the summary counts results in as they land,
-  the project row spins and everything running beneath it turns cyan, tests
-  waiting in a queued run are greyed out behind an hourglass, ⧗; ✓ × ↓
-  arrive as each result comes in; projects, classes and theories carry a
-  fold arrow (▾ / ▸) in the colour of their status, with counts and
-  durations rolled up
-- `o` opens the source in the window you came from: the stack frame under
-  the log cursor, else a failed test's failing line, else the declaration
-- Filter the tree by test or project name as you type, or narrow it to the
-  failed (`f`) or skipped (`s`) tests
-- `i` focuses the view on the selected project or class: it becomes the
-  root of the tree, drawn flush, and from then on the plugin behaves as
-  though its tests were the only ones, down to what `A` runs and where `n`
-  looks for the next failure. `I` steps back out one level.
-- The tests are listed in the background when Neovim opens on a .NET
-  project, so the panes come up with the tree already in them
-
-## Requirements
-
-- Neovim 0.10 or newer (0.11 is what it is developed against)
-- The `dotnet` SDK on your `PATH`, with test projects using the VSTest
-  runner (`Microsoft.NET.Test.Sdk` with xUnit, NUnit or MSTest)
-
-No other plugins, and nothing to compile. [Snacks](https://github.com/folke/snacks.nvim)
-is used for the `:DtestFolder` list when it happens to be installed;
-without it the choice goes through `vim.ui.select`.
-
-## Install
-
-With [lazy.nvim](https://github.com/folke/lazy.nvim):
-
-```lua
-{
-  'emelent/nvim-dtest',
-  -- Every command, or the ones left out will not exist until one of these
-  -- has loaded the plugin.
-  cmd = {
-    'Dtest', 'DtestToggle', 'DtestClose',
-    'DtestRun', 'DtestRunFailed', 'DtestReload',
-    'DtestFile', 'DtestNearest', 'DtestFolder',
-  },
-  keys = {
-    { '<leader>tt', function() require('dtest').run_nearest() end, desc = 'Run the test at the cursor' },
-    { '<leader>tf', function() require('dtest').run_file() end, desc = 'Run the tests in this file' },
-  },
-  opts = {},
-}
-```
-
-Leaving `cmd` out altogether loads it at startup, which costs nothing much:
-`plugin/dtest.lua` registers the commands and requires nothing else until
-one of them is run.
-
-With [packer](https://github.com/wbthomason/packer.nvim):
-
-```lua
-use { 'dtest-nvim', config = function() require('dtest').setup({}) end }
-```
-
-Or clone it into a `pack` directory and call `require('dtest').setup({})`
-from your config. `setup()` is optional: without it the defaults stand and
-the commands still work.
-
-## Usage
-
-| Command | What it does |
-| --- | --- |
-| `:Dtest [target]` | Open the panes for a solution or project file, for a directory, or for whatever the working directory holds |
-| `:DtestToggle` | Show the panes, or hide them when they are up, keeping the session |
-| `:DtestClose` | End the session: stop whatever dotnet is doing and give up the results |
-| `:DtestRun` | Open if needed, then run every test |
-| `:DtestRunFailed` | Re-run the tests that failed last time |
-| `:DtestFile[!]` | Run the tests in the file you are editing (`!` goes to the panes) |
-| `:DtestNearest[!]` | Run the test the cursor is on (`!` goes to the panes) |
-| `:DtestFolder[!] [path]` | Run a folder of tests, choosing which from a fuzzy list (`!` goes to the panes) |
-| `:DtestReload` | Rebuild and list the tests again |
-
-The same from Lua: `require('dtest').open(target)`, `.toggle()`,
-`.hide()`, `.show(opts)`, `.close()`, `.run_all()`, `.run_failed()`,
-`.run_file(opts)`, `.run_nearest(opts)`, `.run_folder(opts)`, `.reload()`,
-`.is_open()`, `.has_session()`, `.prewarm()`.
-
-### Ready before you ask for it
-
-Listing the tests of a solution takes a few seconds, and they are the same
-few seconds every time the panes open. So when Neovim starts in something
-with tests in it, the listing is done then — one build and one
-`dotnet test --list-tests` per project, in the background, with no panes,
-no messages and nothing on the screen to say so. By the time `:Dtest` is
-typed the tree is usually already built, and the panes simply show it.
-
-It is the very session the panes then take over, not a cache: a listing
-still going when they open is shown filling in, exactly as it would have
-been. If a `.cs`, `.fsproj`, `.sln` or the like was written since — a test
-may have been added or renamed — the listing is done again on opening,
-over the tree already there, which stays readable meanwhile. Nothing is
-prepared when there is no solution or project to be found, which is most
-editors most of the time, and `prewarm = false` turns it off outright.
-
-`:Dtest` on some other solution than the one prepared for drops what was
-prepared and lists that one instead, and so does a `setup()` that arrives
-late with a different build configuration.
-
-### Hiding, and coming back
-
-Hiding is not closing. `:DtestToggle` (and `q` in the panes) takes the
-windows off the screen and leaves everything else standing: the tree, the
-results, the logs, and any `dotnet test` still going. Toggling again puts
-them back, beside whatever you are editing then rather than where they
-were before.
-
-So a slow suite can be started, put away, and worked over the top of — and
-when the last test of the run lands, **the panes show themselves again**
-with the results, without taking the cursor. A run asked for while they
-are hidden stays hidden until it is done, which is the point of putting
-them away.
-
-`:DtestClose` is the one that ends a session: it stops whatever dotnet is
-doing and gives up the results.
-
-**Only `:Dtest` and `:DtestToggle` take the cursor.** Every other command
-opens the panes if they are closed and then leaves you where you were —
-they sit beside the code to be glanced at, not moved into. Pass `!` (or
-`{ focus = true }`) to the run commands to be taken there anyway.
-
-### A folder of tests
-
-`:DtestFolder` asks which folder to run and runs it:
-
-```
-╭──────────────────────── dtest folders ─────────────────────────╮
-│ valid                                                     1/9 │
-│────────────────────────────────────────────────────────────────│
-│ Shop.Core.Tests/Orders/Validation  9 tests                     │
-╰────────────────────────────────────────────────────────────────╯
-```
-
-The list is built from the tree, so every entry is a folder that really
-holds tests, with everything under it counted — picking `Orders` runs
-`Orders/Validation` too. A project is a folder like any other and runs
-unfiltered; a namespace runs as one `FullyQualifiedName~Ns.` filter rather
-than one expression per class. The tree is focused on what ran, its
-classes opened, while your cursor stays where it was.
-
-Folders are namespaces, which .NET lays out as directories by convention.
-A `path` argument skips the prompt — `:DtestFolder Shop.Core.Tests/Pricing`
-— and completes on the folders the open session knows.
-
-The list is shown in [Snacks](https://github.com/folke/snacks.nvim)'
-picker when that is installed, under the source name `dtest_folders`, so
-`Snacks.picker.config.sources.dtest_folders` can change its layout or keys.
-Without Snacks it goes through `vim.ui.select`, which is whatever your
-editor already uses for a choice.
-
-### From the file you are editing
-
-`:DtestFile` and `:DtestNearest` work from a source buffer rather than from
-the tree, so a test can be run without leaving the line being written.
-
-- **`:DtestFile`** runs every test class the buffer declares.
-- **`:DtestNearest`** runs the test the cursor is in: the nearest
-  declaration at or above it, counting an attribute line as part of the
-  test under it, so `[Fact]` and `[Theory]` do the expected thing. Above
-  the first test of a class — in the usings, or on the class itself — the
-  class is what runs. A theory runs all of its rows, since a single row
-  cannot be addressed by name.
-
-Neither takes the cursor: the panes open beside the buffer if they were
-closed, and you carry on typing while the tree fills in. What the tree
-shows is **focused on what the file holds** — the class it declares
-becomes the root of the tree, drawn flush, exactly as `i` would, and every
-test under it is unfolded, theory rows and all. From then on `A` runs that
-class and `n` looks for failures inside it; `I` steps back out a level at a
-time. The tree stays open through that run rather than folding its passing
-groups away at the end, since opening it was the point; the next run
-started from the panes reads as a report again. A file declaring several classes focuses the project they
-share. A buffer holding nothing dtest knows about is the exception: there
-is nothing to watch, so it says so and leaves you where you are.
-
-```lua
-vim.keymap.set('n', '<leader>tt', function() require('dtest').run_nearest() end)
-vim.keymap.set('n', '<leader>tf', function() require('dtest').run_file() end)
-vim.keymap.set('n', '<leader>ta', require('dtest').run_all)
-```
-
-Add a `!` (or pass `{ focus = true }`) to be taken to the panes when the
-run starts.
-
-When the panes are on a tab you are not looking at, how the run went is
-echoed when it finishes instead:
-
-```
-dtest: Shop — 1 failed | 7 passed | 0 skipped
-```
-
-Both read the buffer rather than the file on disk, so an unsaved edit that
-renames a test is seen — though of course only a saved, built one can
-actually run. Which tests a buffer holds is worked out from the classes it
-declares and the test names dotnet already listed, so a helper method or a
-call to another test is never mistaken for one. When nothing in the buffer
-matches a listed test, it says so and runs nothing.
-
-Without a target, or with a directory, dtest uses a solution file in that
-directory, or else the first project file there (both in name order).
-`:DtestFile` and `:DtestNearest` fall back to searching upwards from the
-file itself, so they work from a buffer whose project is nowhere near the
-working directory. On open, the
-solution is built once and each test project is listed with `dotnet test
---list-tests`. Test projects are recognised by a `Microsoft.NET.Test.Sdk`,
-`Microsoft.Testing.Platform`, xUnit, NUnit, MSTest or TUnit reference, or
-`<IsTestProject>true</IsTestProject>`; when a solution has none of those
-every project is listed.
+Moving the cursor in the tree is what changes the log; there is no separate
+selection to keep track of. A terminal cell is about twice as tall as it is
+wide, so the panes go side by side once the space has 2.5 columns per line.
 
 ## Keys
 
 Press `?` in the tree for this list, which shows whatever keys are bound.
-All of them can be changed; see [Configuration](#configuration).
 
 | Key | Action |
 | --- | --- |
 | `<C-j>` / `<C-k>`, `<Tab>` | Switch between the log and the tree |
-| `j` / `k`, `gg` / `G`, `<C-d>` / `<C-u>` | Neovim's own motions, in whichever pane has focus |
-| `V` then `y` | Neovim's own linewise visual mode, for copying out of the log |
-| `l` / `h` | Expand / collapse a project, class or theory (`h` on a collapsed node selects its parent) |
+| `l` / `h` | Expand / collapse a node (`h` on a collapsed one selects its parent) |
 | `L` / `H` | Expand / collapse the whole tree |
 | `<Space>` | Toggle a fold |
 | `i` / `I` | Focus on the selected project or class, treating its tests as the only ones; step back out |
-| `<CR>`, `r` | Run the selected node; on the root that is the whole solution in one `dotnet test` |
+| `<CR>`, `r` | Run the selected node |
 | `A` | Run the whole solution, or whatever is in focus |
 | `F` | Re-run only the failed tests |
 | `f` / `s` | Show only the failed / skipped tests |
-| `a` | Show all tests again (`<Esc>` does too) |
+| `a`, `<Esc>` | Show all tests again |
 | `x` | Cancel the running tests and drop the queue |
 | `n` / `N` | Next / previous failed test |
 | `o` | Open the source: the stack frame under the log cursor, else a failed test's failing line, else the declaration |
-| `t`, `/` | Filter the tree by test or project name as you type; `<CR>` keeps the filter, `<Esc>` drops it |
-| `v` | Show the raw dotnet output of the selected project instead of its results |
+| `t`, `/` | Filter the tree as you type; `<CR>` keeps the filter, `<Esc>` drops it |
+| `v` | Show the raw dotnet output of the selected project |
 | `<C-r>` | Rebuild and list the tests again |
 | `?` | Help; any key closes it |
-| `q` | Hide dtest, keeping the session (`:DtestClose` ends it) |
+| `q` | Hide the panes, keeping the session |
 
-The tree-only keys (`l`, `h`, `n`, `N`, `/`, `f`, `s`, `a`, `i`, `t`,
-`<Space>`) are bound in the tree pane alone, so the log keeps Neovim's
-search and motions. Everything else works in both.
+`l`, `h`, `n`, `N`, `/`, `f`, `s`, `a`, `i`, `t` and `<Space>` are bound in
+the tree alone, so the log keeps Neovim's own search and motions.
 
-Runs use `dotnet test --filter`: `FullyQualifiedName~Ns.Class.` for a class
-and `FullyQualifiedName=Ns.Class.Method` for a method. A theory row cannot
-be addressed on its own, so running one runs its method. Results come from
-the console logger as they happen and from the TRX files when the run ends,
-so a test that was not listed (added since the last reload) still appears.
+## Worth knowing
 
-Durations are `0.032s` below a second, `1.5s` below ten, `35s` below a
-minute, then `2m34s`. They are coloured as vitest colours them: green up to
-300ms, yellow beyond it, so slow tests stand out, with the unit in a faded
-shade of the number's own colour. A group shows the sum of its tests'
-times. The summary's timer is different: it is the wall clock over the
-batch, so it keeps moving through a slow test instead of sitting still
-until the next result lands.
+**Listed before you ask.** When Neovim opens on a project with tests in it,
+they are listed there and then — in the background, with no panes, no
+messages and nothing on screen to say so — so `:Dtest` usually shows a tree
+that is already built. A listing still going when the panes open is shown
+filling in. If a source or project file was written since, it is listed
+again on opening, over the tree already there. Nothing happens where there
+is no solution to be found; `prewarm = false` turns it off.
+
+**Hiding is not closing.** `:DtestToggle` and `q` take the windows off the
+screen and leave the tree, the results and any running `dotnet test`
+standing. When the last test of a hidden run lands the panes show themselves
+again, without taking the cursor. `:DtestClose` is the one that ends a
+session.
+
+**Only `:Dtest` and `:DtestToggle` take the cursor.** Every other command
+opens the panes if needed and leaves you where you were — they sit beside
+the code to be glanced at, not moved into. `!` overrides that.
+
+**From a source buffer.** `:DtestFile` runs the classes the buffer declares;
+`:DtestNearest` runs the test the cursor is in, counting an attribute line as
+part of the test under it, and falling back to the class above the first
+test. Both zoom the tree onto what the file holds, unfolded, and keep it that
+way for that run. Both read the buffer rather than the file on disk, and work
+out which tests it holds from the classes it declares and the names dotnet
+listed, so a helper method is never mistaken for a test.
+
+**Folders are namespaces.** `:DtestFolder` lists the folders that really hold
+tests, built from the tree, with everything underneath counted — picking
+`Orders` runs `Orders/Validation` too. A project runs unfiltered; a namespace
+runs as one `FullyQualifiedName~Ns.` filter. A `path` argument skips the
+prompt. With Snacks the list is the source `dtest_folders`, so
+`Snacks.picker.config.sources.dtest_folders` can restyle it.
+
+**Runs and results.** Running the root is one `dotnet test` over the
+solution; anything smaller is one per project, with `--filter`, and runs
+queue up. A theory row cannot be addressed on its own, so running one runs
+its method. Results arrive twice over — from the console logger as they
+happen, and in full from the `.trx` files at the end — so a test added since
+the last reload still appears.
+
+**Targets.** Without one, a solution file in the working directory is used,
+else the first project file there. `:DtestFile` and `:DtestNearest` also
+search upwards from the file itself. Test projects are recognised by a
+`Microsoft.NET.Test.Sdk`, `Microsoft.Testing.Platform`, xUnit, NUnit, MSTest
+or TUnit reference, or `<IsTestProject>true</IsTestProject>`; where a
+solution has none of those, every project is listed.
+
+**Durations** are `0.032s`, `1.5s`, `35s`, then `2m34s`, coloured by speed:
+green up to 300ms, yellow beyond. The summary's timer is the wall clock over
+the batch, so it keeps moving through a slow test.
 
 ## Configuration
 
@@ -379,14 +204,12 @@ require('dtest').setup({
   configuration = nil,   -- build configuration passed to dotnet (-c)
   no_build = false,      -- never build; list and run against existing binaries
   build_on_open = true,  -- build once when the panes open
-  prewarm = true,        -- list the tests in the background when Neovim
-                         -- opens on a project, so the panes come up ready
+  prewarm = true,        -- list the tests in the background at startup
 
   layout = {
     direction = 'auto',  -- 'auto' | 'vertical' (stacked) | 'horizontal' (side by side)
-    position = 'auto',   -- where they are carved out of the current window:
-                         -- 'auto' | 'right' | 'left' | 'below' | 'above'
-    size = nil,          -- their share of that window: a fifth beside it,
+    position = 'auto',   -- 'auto' | 'right' | 'left' | 'below' | 'above'
+    size = nil,          -- their share of the window: a fifth beside it,
                          -- two thirds under it, unless this says otherwise
     log_ratio = 0.7,     -- the log's share of the panes, the tree taking the rest
     footer = true,       -- the two summary lines along the bottom
@@ -422,44 +245,16 @@ The actions are `switch-pane`, `expand`, `collapse`, `expand-all`,
 `collapse-all`, `toggle-fold`, `focus`, `unfocus`, `run`, `run-all`,
 `run-failed`, `only-failed`, `only-skipped`, `show-all`, `clear`, `cancel`,
 `next-failure`, `previous-failure`, `open-in-editor`, `filter`,
-`toggle-output`, `reload`, `help` and `quit`. The help screen prints
-whatever is bound, so `?` always tells the truth about your own keys.
+`toggle-output`, `reload`, `help` and `quit`.
 
 The three outcome colours are washed shades rather than the terminal's own
 red, green and yellow, which are meant to shout and would, on a screen that
-is mostly results. Every other group is derived from the six above: the
-tree draws each colour a shade back, so the summary is the line that
-carries. The groups themselves — `DtestPassed`, `DtestFailed`,
-`DtestSkipped`, `DtestRunning`, `DtestDim`, `DtestBold`, `DtestQuick`,
-`DtestSlow`, `DtestExpected`, `DtestActual`, `DtestLocation`,
-`DtestBadgeFail`, `DtestTreePassed` and the rest — are defined with
-`default = true`, so a colourscheme or your own `:highlight` has the last
-word.
-
-The buffers carry the filetypes `dtest-tree`, `dtest-log` and
-`dtest-summary`, for anything else you want to hang off them.
-
-## Differences from the terminal dtest
-
-Everything the editor already does well is left to the editor, so this is
-not quite key for key with the TUI:
-
-- Motions, search and copying are Neovim's own. dtest has its own log
-  cursor, `V`/`y` selection and OSC 52 clipboard because a TUI must; here
-  the log is a buffer, so `/`, `n`, `V`, `y` and your own mappings work in
-  it. `n` and `N` are therefore bound to the next and previous failure in
-  the tree pane only.
-- `o` opens the file in the window dtest was opened from, rather than
-  sending it to a Neovim listening on a socket. `$nvim_sock` means nothing
-  here.
-- The panes are windows beside your code rather than a screen of their
-  own, so the summary is a window rather than a drawn footer and the two
-  of them turn side by side when there is room for it.
-- `:DtestFile` and `:DtestNearest` have no counterpart in the TUI, which
-  has no buffer to read: dtest is driven from its own tree.
-- A solution-wide run reads every `.trx` the run wrote, not one: dotnet
-  gives each project its own, and naming them all the same would leave only
-  the last project's messages.
+is mostly results. Every other group is derived from the six above —
+`DtestPassed`, `DtestFailed`, `DtestRunning`, `DtestQuick`, `DtestSlow`,
+`DtestExpected`, `DtestActual`, `DtestTreePassed` and the rest — all defined
+with `default = true`, so a colourscheme or your own `:highlight` has the
+last word. The buffers carry the filetypes `dtest-tree`, `dtest-log` and
+`dtest-summary`.
 
 ## Development
 
@@ -468,17 +263,17 @@ make test     # nvim --headless -l tests/run.lua
 ```
 
 The tests run the real session with the `dotnet` CLI stood in for
-(`tests/helper.lua`), so they need neither the SDK nor a solution on disk,
-and they cover the tree model, the parsers and the panes themselves.
+(`tests/helper.lua`), so they need neither the SDK nor a solution on disk.
 
 ```
 plugin/dtest.lua        the user commands
 lua/dtest/init.lua      setup() and the public API
 lua/dtest/config.lua    defaults, key bindings, colours
+lua/dtest/prewarm.lua   the background listing made before the panes open
 lua/dtest/session.lua   the model: the queue of runs, the batch, the logs
 lua/dtest/tree.lua      solution → project → class → method → case nodes
 lua/dtest/context.lua   reading a source buffer: its classes, the test at the cursor
 lua/dtest/pick.lua      the folder list, through Snacks' picker or vim.ui.select
-lua/dtest/dotnet/       the CLI: solutions, --list-tests, runs, TRX, filters, source lookup
+lua/dtest/dotnet/       the CLI: solutions, --list-tests, runs, TRX, filters
 lua/dtest/ui/           the panes: windows, rendering, highlights, the filter prompt
 ```
