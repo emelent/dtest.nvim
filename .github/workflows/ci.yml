@@ -19,3 +19,24 @@ jobs:
           version: ${{ matrix.nvim }}
       - name: Tests
         run: make test
+
+  # Every push to main is tagged, the version worked out from the commits it
+  # brought. It waits on the suite: a tag is a thing people pin to, so it
+  # should never point at a commit that failed.
+  tag:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the whole history, or there are no tags to count from
+      - name: Tag
+        run: |
+          # An annotated tag records who made it, and a runner has nobody
+          # configured; the script is left to use your own identity locally.
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          .github/next-version.sh

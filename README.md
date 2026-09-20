@@ -4,31 +4,8 @@ Run the tests of a .NET solution or project from Neovim: a tree of tests
 over a log of results. It drives the `dotnet` CLI — builds once, lists every
 test, runs whatever the tree selects, and updates live while it goes.
 
-```
-⎯⎯ Log  Shop.Api.Tests › Middleware.RateLimitMiddlewareTests › OverLimit_Returns429 ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
-  × Shop.Api.Tests › Middleware.RateLimitMiddlewareTests › OverLimit_Returns429
-
-   FAIL  Shop.Api.Tests › Middleware.RateLimitMiddlewareTests › OverLimit_Returns429 0.001s
-Assert.Equal() Failure: Values differ
-Expected: 429
-Actual:   428
- ❯ tests/Shop.Api.Tests/Middleware/RateLimitMiddlewareTests.cs:12
-
-⎯⎯ Tests ⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯
-  ▾ Shop (2 projects | 49 tests)
-  ├─ ▾ Shop.Api.Tests (16 tests | 2 failed | 1 skipped) 0.82s
-  │  ├─ ▾ Controllers.OrdersControllerTests (3 tests | 1 failed) 0.005s
-  │  │  ├─ × Get_Paginates 0.000s
-  │  │  └─ ✓ Post_CreatesOrder 0.000s
-  │  ├─ ▸ Integration.CheckoutFlowTests (2 tests | 1 skipped) 0.804s
-  │  └─ ▾ Middleware.RateLimitMiddlewareTests (2 tests | 1 failed) 0.003s
-  │     ├─ × OverLimit_Returns429 0.001s
-  │     └─ ✓ UnderLimit_Passes 0.002s
-  └─ ▸ Shop.Core.Tests (33 tests | 2 failed | 1 skipped) 1.2s
-
- Ran 49 tests in 2.1s at 23:37:56
- 4 failed | 43 passed | 2 skipped
-```
+![The panes after a run: the failures in the log, the tree filled in, the
+summary along the bottom](screenshots/run.png)
 
 ## Requirements
 
@@ -83,6 +60,10 @@ Lua: `require('dtest').open(target)`, `.toggle()`, `.hide()`, `.show(opts)`,
 ## The panes
 
 Three windows beside the window you were in, so the code stays on screen.
+
+![Freshly opened beside a source file: the tree listing ten projects,
+nothing run yet](screenshots/opened.png)
+
 Which way round they go follows the shape of the space, re-checked on resize:
 
 ```
@@ -112,6 +93,9 @@ wide space                          tall space
 Moving the cursor in the tree is what changes the log; there is no separate
 selection to keep track of. A terminal cell is about twice as tall as it is
 wide, so the panes go side by side once the space has 2.5 columns per line.
+
+![One failing test selected in the tree, its message and stack trace alone in
+the log](screenshots/failure.png)
 
 ## Keys
 
@@ -150,6 +134,13 @@ that is already built. A listing still going when the panes open is shown
 filling in. If a source or project file was written since, it is listed
 again on opening, over the tree already there. Nothing happens where there
 is no solution to be found; `prewarm = false` turns it off.
+
+**Live while it runs.** The summary counts results in as they land, the
+running project spins, everything running beneath it turns cyan, and tests
+waiting in a queued run sit behind an hourglass.
+
+![A run in progress: projects spinning, tests queued, the summary
+counting](screenshots/running.png)
 
 **Hiding is not closing.** `:DtestToggle` and `q` take the windows off the
 screen and leave the tree, the results and any running `dotnet test`
@@ -264,6 +255,12 @@ make test     # nvim --headless -l tests/run.lua
 
 The tests run the real session with the `dotnet` CLI stood in for
 (`tests/helper.lua`), so they need neither the SDK nor a solution on disk.
+
+Every push to `main` that passes the suite is tagged `vX.Y.Z`, the bump
+worked out from the commits it brought: `feat:` a minor, anything else a
+patch, and `feat!:` or a `BREAKING CHANGE:` body a major — a minor while the
+major is still 0. `.github/next-version.sh --dry-run` says what the next tag
+would be without making one.
 
 ```
 plugin/dtest.lua        the user commands
