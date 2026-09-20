@@ -51,6 +51,25 @@ The dependency direction is one way: `ui` → `session` → `tree`, `dotnet`.
   lines of `{text, highlight}` segments and nothing else; `init.lua` owns
   the windows, the keymaps and the redraw.
 
+### Hiding
+
+The session outlives the windows. `S` holds both, but `is_open` asks only
+whether the tree window is still up, while `has_session` asks whether `S`
+is there at all; guards have to pick the right one. Anything that changes
+what will be *drawn* (`reveal`, `focus_on`) works on a hidden session and
+leaves `render` to no-op, which is what makes a run behind hidden panes
+come back looking right.
+
+`hide` empties `S.wins` **before** closing the windows, so the `WinClosed`
+handler knows they are not going away under it — the same trick `close`
+plays by clearing `S` first. `show` rebuilds them beside whatever is being
+edited then, and clears the signatures, since new windows have nothing
+drawn in them yet.
+
+`session.on_batch_end` shows a hidden session again: tests left running
+behind it are worth coming back for. `ensure_open` deliberately does not,
+so a run asked for while hidden stays hidden until it is done.
+
 ### The windows
 
 The panes are three windows beside whatever is being edited, in the tab

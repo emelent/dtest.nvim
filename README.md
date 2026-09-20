@@ -176,8 +176,8 @@ the commands still work.
 | Command | What it does |
 | --- | --- |
 | `:Dtest [target]` | Open the panes for a solution or project file, for a directory, or for whatever the working directory holds |
-| `:DtestToggle` | Open them, or close them when they are open |
-| `:DtestClose` | Close them and stop whatever dotnet is doing |
+| `:DtestToggle` | Show the panes, or hide them when they are up, keeping the session |
+| `:DtestClose` | End the session: stop whatever dotnet is doing and give up the results |
 | `:DtestRun` | Open if needed, then run every test |
 | `:DtestRunFailed` | Re-run the tests that failed last time |
 | `:DtestFile[!]` | Run the tests in the file you are editing (`!` goes to the panes) |
@@ -186,8 +186,26 @@ the commands still work.
 | `:DtestReload` | Rebuild and list the tests again |
 
 The same from Lua: `require('dtest').open(target)`, `.toggle()`,
-`.close()`, `.run_all()`, `.run_failed()`, `.run_file(opts)`,
-`.run_nearest(opts)`, `.run_folder(opts)`, `.reload()`, `.is_open()`.
+`.hide()`, `.show(opts)`, `.close()`, `.run_all()`, `.run_failed()`,
+`.run_file(opts)`, `.run_nearest(opts)`, `.run_folder(opts)`, `.reload()`,
+`.is_open()`, `.has_session()`.
+
+### Hiding, and coming back
+
+Hiding is not closing. `:DtestToggle` (and `q` in the panes) takes the
+windows off the screen and leaves everything else standing: the tree, the
+results, the logs, and any `dotnet test` still going. Toggling again puts
+them back, beside whatever you are editing then rather than where they
+were before.
+
+So a slow suite can be started, put away, and worked over the top of — and
+when the last test of the run lands, **the panes show themselves again**
+with the results, without taking the cursor. A run asked for while they
+are hidden stays hidden until it is done, which is the point of putting
+them away.
+
+`:DtestClose` is the one that ends a session: it stops whatever dotnet is
+doing and gives up the results.
 
 **Only `:Dtest` and `:DtestToggle` take the cursor.** Every other command
 opens the panes if they are closed and then leaves you where you were —
@@ -308,7 +326,7 @@ All of them can be changed; see [Configuration](#configuration).
 | `v` | Show the raw dotnet output of the selected project instead of its results |
 | `<C-r>` | Rebuild and list the tests again |
 | `?` | Help; any key closes it |
-| `q` | Close dtest |
+| `q` | Hide dtest, keeping the session (`:DtestClose` ends it) |
 
 The tree-only keys (`l`, `h`, `n`, `N`, `/`, `f`, `s`, `a`, `i`, `t`,
 `<Space>`) are bound in the tree pane alone, so the log keeps Neovim's

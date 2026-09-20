@@ -593,7 +593,7 @@ local help_rows = {
   { { 'filter' }, 'to filter the tree by name (enter keeps it, esc clears every filter)' },
   { { 'toggle-output' }, 'to show the raw dotnet output of the selected project instead' },
   { { 'reload' }, 'to rebuild and list the tests again' },
-  { { 'quit' }, 'to close dtest' },
+  { { 'quit' }, 'to hide dtest, keeping the session and whatever is running (:DtestClose ends it)' },
 }
 
 --- vitest's "Watch Usage" list, drawn in the log pane; any key closes it.

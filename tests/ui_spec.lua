@@ -732,6 +732,64 @@ return {
     close()
   end },
 
+  { 'hides the panes without giving up what has run', function()
+    local s = open()
+    ui.actions['run-all']()
+    run_and_wait()
+    local buf = t.pane_buf('tree')
+
+    ui.toggle()
+    t.eq(false, ui.is_open(), 'off the screen')
+    t.ok(ui.has_session(), 'but still there')
+    t.eq(s, ui.session(), 'the same session')
+    t.eq(-1, vim.fn.bufwinid(buf), 'no window holds the tree')
+
+    ui.toggle()
+    t.ok(ui.is_open(), 'and back again')
+    t.eq(buf, t.pane_buf('tree'), 'the same buffers, so the same keymaps')
+    t.eq(1, ui.session().tree:counts().failed, 'with what ran still in it')
+    t.ok(t.find_line(t.lines('footer'), '1 failed'), 'the summary too')
+    t.eq(buf, vim.api.nvim_get_current_buf(), 'toggling on takes the cursor')
+    close()
+  end },
+
+  { 'shows itself again when tests finish behind it', function()
+    local s = open()
+    in_source_buffer()
+    ui.hide()
+    t.eq(false, ui.is_open())
+    require('dtest').run_file({})
+    t.eq(false, ui.is_open(), 'a run does not bring it back on its own')
+    run_and_wait()
+    t.ok(ui.is_open(), 'but finishing does')
+    t.matches('RateLimitMiddlewareTests%.cs$', vim.api.nvim_buf_get_name(0),
+      'without taking the cursor')
+    t.eq(1, s.tree:counts().failed)
+    close()
+  end },
+
+  { 'q hides, and closing is what ends it', function()
+    local s = open()
+    ui.actions.quit()
+    t.eq(false, ui.is_open())
+    t.ok(ui.has_session(), 'q is a dismissal, not an ending')
+    ui.close()
+    t.eq(false, ui.has_session(), 'closing gives the session up')
+    t.eq(nil, ui.session())
+    t.eq(nil, t.pane_buf('tree'), 'and its buffers with it')
+    t.ok(s)
+  end },
+
+  { 'asking for the panes while they are hidden brings them back', function()
+    open()
+    ui.hide()
+    require('dtest').run_file({ focus = true })
+    t.ok(ui.is_open(), 'focus means show me')
+    t.eq(t.pane_buf('tree'), vim.api.nvim_get_current_buf())
+    run_and_wait()
+    close()
+  end },
+
   { 'binds the keys the config names', function()
     config.setup({ no_build = true, keys = { run = { 'R' } } })
     stub()

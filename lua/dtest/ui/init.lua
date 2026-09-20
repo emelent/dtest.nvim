@@ -36,9 +36,17 @@ local tree_only = {
   ['next-failure'] = true, ['previous-failure'] = true,
 }
 
---- Reports whether the panes are open.
+--- Reports whether the panes are on screen. A hidden session has none:
+--- see [M.has_session].
 function M.is_open()
-  return S ~= nil and vim.api.nvim_win_is_valid(S.wins.tree)
+  return S ~= nil and S.wins.tree ~= nil and vim.api.nvim_win_is_valid(S.wins.tree)
+end
+
+--- Reports whether there is a session at all, shown or hidden. Hiding
+--- keeps the tree, the results and anything still running; only closing
+--- gives them up.
+function M.has_session()
+  return S ~= nil
 end
 
 --- Reports whether they are also on screen, rather than sitting in a tab
@@ -328,6 +336,17 @@ local function count_windows(wins)
   return n
 end
 
+-- Closing every window of a tab page would take the tab, and the editor
+-- with it when it is the last one, so an empty window is put in their
+-- place first.
+local function leave_something(wins)
+  if not wins.tree or not vim.api.nvim_win_is_valid(wins.tree) then return end
+  local tab = vim.api.nvim_win_get_tabpage(wins.tree)
+  if #vim.api.nvim_tabpage_list_wins(tab) > count_windows(wins) then return end
+  vim.api.nvim_open_win(vim.api.nvim_create_buf(true, false), false,
+    { split = 'above', win = wins.log })
+end
+
 local function setup_window(win, opts)
   vim.wo[win].number = false
   vim.wo[win].relativenumber = false
@@ -348,77 +367,11 @@ local function setup_window(win, opts)
   vim.wo[win].statusline = ' '
 end
 
---- Closes the panes and stops whatever dotnet is doing.
-function M.close()
-  if not S then return end
-  local state = S
-  S = nil
-  prompt.close()
-  if state.timer then
-    state.timer:stop()
-    state.timer:close()
-  end
-  state.session:shutdown()
-  pcall(vim.api.nvim_del_augroup_by_id, state.augroup)
-  -- Closing every window of a tab page would take the tab, and the editor
-  -- with it when it is the last one, so something is left in their place.
-  local tab = vim.api.nvim_win_is_valid(state.wins.tree)
-    and vim.api.nvim_win_get_tabpage(state.wins.tree) or nil
-  if tab and #vim.api.nvim_tabpage_list_wins(tab) <= count_windows(state.wins) then
-    vim.api.nvim_open_win(vim.api.nvim_create_buf(true, false), false,
-      { split = 'above', win = state.wins.log })
-  end
-  for _, win in pairs(state.wins) do
-    if vim.api.nvim_win_is_valid(win) then
-      pcall(vim.api.nvim_win_close, win, true)
-    end
-  end
-  for _, buf in pairs(state.bufs) do
-    if vim.api.nvim_buf_is_valid(buf) then
-      pcall(vim.api.nvim_buf_delete, buf, { force = true })
-    end
-  end
-  if state.origin and vim.api.nvim_win_is_valid(state.origin) then
-    pcall(vim.api.nvim_set_current_win, state.origin)
-  end
-end
-
---- Opens the panes for target, or brings the open ones forward.
-function M.open(target)
-  if M.is_open() then
-    M.focus()
-    return
-  end
-  local opts = config.options
-  target = target or opts.target or vim.uv.cwd()
-  target = vim.fn.fnamemodify(vim.fs.normalize(target), ':p'):gsub('/$', '')
-  local stat = vim.uv.fs_stat(target)
-  if not stat then
-    vim.notify('dtest: ' .. target .. ': no such file', vim.log.levels.ERROR)
-    return
-  end
-  -- A directory (or nothing at all) means: whatever is in there.
-  if stat.type == 'directory' then
-    local found, err = require('dtest.dotnet.solution').find_target(target)
-    if not found then
-      vim.notify('dtest: ' .. err, vim.log.levels.ERROR)
-      return
-    end
-    target = found
-  end
-
-  hl.setup()
-  local origin = vim.api.nvim_get_current_win()
-  local bufs = {
-    log = make_buffer('log', 'dtest-log'),
-    tree = make_buffer('tree', 'dtest-tree'),
-    footer = opts.layout.footer and make_buffer('footer', 'dtest-summary') or nil,
-  }
-
-  -- The log takes the new space first, so it is the whole of it; the
-  -- summary is split off the bottom before the tree is, which is what
-  -- makes it span both panes once they sit side by side.
-  --
+-- Builds the three windows beside origin and returns them, with the way
+-- round they ended up. The log takes the new space first, so it is the
+-- whole of it; the summary is split off the bottom before the tree is,
+-- which is what makes it span both panes once they sit side by side.
+local function build_windows(origin, bufs)
   -- 'equalalways' is off for the duration: on, it hands every window an
   -- equal share each time one of these three opens, which would grow the
   -- space taken from the window being split with every step.
@@ -455,6 +408,73 @@ function M.open(target)
     vim.wo[footer_win].winbar = ''
   end
   vim.o.equalalways = equalalways
+  return { log = log_win, tree = tree_win, footer = footer_win }, direction
+end
+
+
+--- Closes the panes and stops whatever dotnet is doing.
+function M.close()
+  if not S then return end
+  local state = S
+  S = nil
+  prompt.close()
+  if state.timer then
+    state.timer:stop()
+    state.timer:close()
+  end
+  state.session:shutdown()
+  pcall(vim.api.nvim_del_augroup_by_id, state.augroup)
+  leave_something(state.wins)
+  for _, win in pairs(state.wins) do
+    if vim.api.nvim_win_is_valid(win) then
+      pcall(vim.api.nvim_win_close, win, true)
+    end
+  end
+  for _, buf in pairs(state.bufs) do
+    if vim.api.nvim_buf_is_valid(buf) then
+      pcall(vim.api.nvim_buf_delete, buf, { force = true })
+    end
+  end
+  if state.origin and vim.api.nvim_win_is_valid(state.origin) then
+    pcall(vim.api.nvim_set_current_win, state.origin)
+  end
+end
+
+--- Opens the panes for target, or brings the open ones forward.
+function M.open(target)
+  if M.has_session() then
+    -- A session that is only hidden comes back rather than starting over,
+    -- results and all.
+    M.focus()
+    return
+  end
+  local opts = config.options
+  target = target or opts.target or vim.uv.cwd()
+  target = vim.fn.fnamemodify(vim.fs.normalize(target), ':p'):gsub('/$', '')
+  local stat = vim.uv.fs_stat(target)
+  if not stat then
+    vim.notify('dtest: ' .. target .. ': no such file', vim.log.levels.ERROR)
+    return
+  end
+  -- A directory (or nothing at all) means: whatever is in there.
+  if stat.type == 'directory' then
+    local found, err = require('dtest.dotnet.solution').find_target(target)
+    if not found then
+      vim.notify('dtest: ' .. err, vim.log.levels.ERROR)
+      return
+    end
+    target = found
+  end
+
+  hl.setup()
+  local origin = vim.api.nvim_get_current_win()
+  local bufs = {
+    log = make_buffer('log', 'dtest-log'),
+    tree = make_buffer('tree', 'dtest-tree'),
+    footer = opts.layout.footer and make_buffer('footer', 'dtest-summary') or nil,
+  }
+
+  local wins, direction = build_windows(origin, bufs)
 
   local session = session_mod.new(target, {
     configuration = opts.configuration,
@@ -462,7 +482,7 @@ function M.open(target)
   })
   S = {
     origin = origin,
-    wins = { log = log_win, tree = tree_win, footer = footer_win },
+    wins = wins,
     bufs = bufs,
     direction = direction,
     session = session,
@@ -478,6 +498,9 @@ function M.open(target)
   -- A run started from a source buffer leaves the summary out of sight, so
   -- how it went is said out loud instead.
   session.on_batch_end = function(counts)
+    -- Tests left running behind a hidden session are worth coming back
+    -- for; the panes show themselves again once they are all in.
+    if not M.is_open() then M.show() end
     if M.is_visible() then return end
     vim.notify(string.format('dtest: %s — %d failed | %d passed | %d skipped',
       session.name, counts.failed, counts.passed, counts.skipped),
@@ -491,15 +514,58 @@ function M.open(target)
   S.timer = vim.uv.new_timer()
   S.timer:start(frame_ms, frame_ms, vim.schedule_wrap(tick))
 
-  vim.api.nvim_set_current_win(tree_win)
+  vim.api.nvim_set_current_win(wins.tree)
   M.render()
   session:start()
 end
 
---- Opens the panes when they are closed and closes them when they are open.
+--- Takes the panes off the screen without giving up the session: the
+--- tree, the results and anything still running are kept, and [M.show]
+--- puts them back.
+function M.hide()
+  if not M.is_open() then return end
+  prompt.close()
+  local wins = S.wins
+  -- Emptied first, so the WinClosed handler knows these are not windows
+  -- going away under it.
+  S.wins = {}
+  leave_something(wins)
+  for _, win in pairs(wins) do
+    if vim.api.nvim_win_is_valid(win) then
+      pcall(vim.api.nvim_win_close, win, true)
+    end
+  end
+  if S.origin and vim.api.nvim_win_is_valid(S.origin) then
+    pcall(vim.api.nvim_set_current_win, S.origin)
+  end
+end
+
+--- Puts a hidden session's panes back, beside whatever is being edited
+--- now rather than where they were before.
+--- @param opts table|nil {focus=true} puts the cursor in them as well
+function M.show(opts)
+  if not M.has_session() or M.is_open() then return end
+  local origin = vim.api.nvim_get_current_win()
+  S.origin = origin
+  S.wins, S.direction = build_windows(origin, S.bufs)
+  -- The buffers kept their keymaps and their contents; the windows are
+  -- new, so what is drawn in them has to be drawn again.
+  S.tree_sig, S.log_sig, S.log_node = nil, nil, nil
+  M.resize()
+  M.render()
+  if opts and opts.focus then
+    pcall(vim.api.nvim_set_current_win, S.wins.tree)
+  end
+end
+
+--- Hides the panes when they are up and brings them back when they are
+--- not, starting a session when there is none. Nothing is given up on the
+--- way: what has run stays run, and what is running keeps running.
 function M.toggle()
   if M.is_open() then
-    M.close()
+    M.hide()
+  elseif M.has_session() then
+    M.show({ focus = true })
   else
     M.open()
   end
@@ -543,15 +609,17 @@ end
 --- @return table|nil session
 function M.ensure_open(opts)
   opts = opts or {}
-  if not M.is_open() then
-    local back = vim.api.nvim_get_current_win()
-    M.open(opts.target)
-    if not M.is_open() then return nil end
-    if not opts.focus and vim.api.nvim_win_is_valid(back) then
-      pcall(vim.api.nvim_set_current_win, back)
-    end
-  elseif opts.focus then
-    M.focus()
+  if M.has_session() then
+    -- A hidden session is left hidden: it was put away on purpose, and it
+    -- shows itself again when what is running finishes.
+    if opts.focus then M.focus() end
+    return S.session
+  end
+  local back = vim.api.nvim_get_current_win()
+  M.open(opts.target)
+  if not M.is_open() then return nil end
+  if not opts.focus and vim.api.nvim_win_is_valid(back) then
+    pcall(vim.api.nvim_set_current_win, back)
   end
   return S.session
 end
@@ -562,7 +630,7 @@ end
 --- class above is taken instead, and the root widens the view again.
 --- @param opts table|nil {expand=true} opens everything under it as well
 function M.focus_on(node, opts)
-  if not M.is_open() then return end
+  if not M.has_session() then return end
   while node and (node.kind == 'method' or node.kind == 'case') do
     node = node.parent
   end
@@ -580,15 +648,21 @@ function M.focus_on(node, opts)
   M.render()
 end
 
---- Puts the cursor in the tree, from wherever it was, bringing the tab
---- page the panes live on forward when that is another one.
+--- Puts the cursor in the tree, from wherever it was, showing the panes
+--- first when they are hidden and bringing the tab page they live on
+--- forward when that is another one.
 function M.focus()
-  if M.is_open() then pcall(vim.api.nvim_set_current_win, S.wins.tree) end
+  if not M.has_session() then return end
+  if not M.is_open() then
+    M.show({ focus = true })
+    return
+  end
+  pcall(vim.api.nvim_set_current_win, S.wins.tree)
 end
 
 --- Puts the tree cursor on a node, opening whatever hides it.
 function M.reveal(node)
-  if not M.is_open() or not node then return end
+  if not M.has_session() or not node then return end
   local parent = node.parent
   while parent do
     parent.expanded = true
@@ -617,7 +691,7 @@ local function selected()
 end
 
 function actions.quit()
-  M.close()
+  M.hide()
 end
 
 actions['switch-pane'] = function()
@@ -895,7 +969,7 @@ function M.bind_autocmds()
       local closed = tonumber(args.match)
       for _, win in pairs(S.wins) do
         if win == closed then
-          vim.schedule(M.close)
+          vim.schedule(M.hide)
           return
         end
       end

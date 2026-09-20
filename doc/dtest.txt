@@ -47,10 +47,13 @@ No other plugins are needed.
                         already open jumps to them.
 
                                                                 *:DtestToggle*
-:DtestToggle            Open the panes, or close them when they are open.
+:DtestToggle            Show the panes, or hide them when they are up.
+                        Hiding keeps the session: see |dtest-hiding|.
 
                                                                  *:DtestClose*
-:DtestClose             Close the panes and stop whatever dotnet is doing.
+:DtestClose             End the session: stop whatever dotnet is doing and
+                        give up the results. To put the panes away for a
+                        while, hide them instead; see |dtest-hiding|.
 
                                                                    *:DtestRun*
 :DtestRun               Run every test, opening the panes first if needed.
@@ -90,11 +93,17 @@ require('dtest').setup({opts})
 
 require('dtest').open({target})         Open the panes. |:Dtest|
 require('dtest').toggle()               |:DtestToggle|
+require('dtest').hide()                 take the panes off the screen,
+                        keeping the session
+require('dtest').show({opts})           put them back; {opts.focus} puts
+                        the cursor in them too
 require('dtest').close()                |:DtestClose|
 require('dtest').run_all()              |:DtestRun|
 require('dtest').run_failed()           |:DtestRunFailed|
 require('dtest').reload()               |:DtestReload|
-require('dtest').is_open()              Whether the panes are open.
+require('dtest').is_open()              Whether the panes are on screen.
+require('dtest').has_session()          Whether there is a session at all,
+                        shown or hidden.
 
 ==============================================================================
 5. LAYOUT                                                       *dtest-layout*
@@ -159,7 +168,7 @@ are Neovim's own in whichever pane has focus.
     v                   show the raw dotnet output instead of the results
     <C-r>               rebuild and list the tests again
     ?                   help; any key closes it
-    q                   close dtest
+    q                   hide dtest, keeping the session
 
 The tree-only keys (l, h, n, N, /, f, s, a, i, t, <Space>) are bound in the
 tree pane alone, so the log keeps Neovim's search and motions.
@@ -168,6 +177,21 @@ tree pane alone, so the log keeps Neovim's search and motions.
 the log line under the cursor when it is a stack frame, else a failed
 test's failing line, else the declaration of what is selected, found by
 scanning the project's sources.
+
+                                                              *dtest-hiding*
+Hiding, and coming back ~
+
+Hiding is not closing. |:DtestToggle|, and `q` in the panes, takes the
+windows off the screen and leaves everything else standing: the tree, the
+results, the logs, and any `dotnet test` still going. Toggling again puts
+them back, beside whatever is being edited then rather than where they
+were before.
+
+A run left going behind hidden panes shows them again once every test of
+it is in, without taking the cursor. A run asked for while they are hidden
+stays hidden until it finishes, which is the point of putting them away.
+
+|:DtestClose| is what ends a session.
 
                                                              *dtest-folders*
 Folders of tests ~

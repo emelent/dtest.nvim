@@ -20,16 +20,39 @@ function M.open(target)
   require('dtest.ui').open(target)
 end
 
+--- Ends the session: whatever is running is stopped and the results are
+--- given up. Hiding is what puts the panes away for a while.
 function M.close()
   require('dtest.ui').close()
 end
 
+--- Hides the panes when they are up, brings them back when they are not,
+--- and starts a session when there is none. Nothing that has run is lost
+--- and nothing running is stopped; a run left going behind them shows
+--- them again when it finishes.
 function M.toggle()
   require('dtest.ui').toggle()
 end
 
+--- Takes the panes off the screen, keeping the session.
+function M.hide()
+  require('dtest.ui').hide()
+end
+
+--- Puts a hidden session's panes back.
+--- @param opts table|nil {focus=true} puts the cursor in them as well
+function M.show(opts)
+  require('dtest.ui').show(opts)
+end
+
+--- Reports whether the panes are on screen.
 function M.is_open()
   return require('dtest.ui').is_open()
+end
+
+--- Reports whether there is a session at all, shown or hidden.
+function M.has_session()
+  return require('dtest.ui').has_session()
 end
 
 --- Runs everything, opening the panes first when they are closed. The
