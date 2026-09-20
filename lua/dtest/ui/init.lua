@@ -216,6 +216,9 @@ local function draw_log()
   else
     lines = render.log_lines(S.session, node)
   end
+  -- Kept for `open-in-editor`, which needs to know whose failure the line
+  -- under the cursor belongs to.
+  S.log_lines = lines
   local sig = signature(lines)
   local changed_node = node ~= S.log_node or S.help ~= S.log_help
   if sig == S.log_sig and not changed_node then return end
@@ -912,6 +915,14 @@ actions['open-in-editor'] = function()
   local loc
   if vim.api.nvim_get_current_win() == S.wins.log then
     loc = source.location_in_line(vim.api.nvim_get_current_line())
+    -- A group's log is several tests' failures one after another, so the
+    -- test being read is the one whose block the cursor is in, not the
+    -- group the tree has selected.
+    if not loc then
+      local row = vim.api.nvim_win_get_cursor(S.wins.log)[1]
+      local owner = S.log_lines and S.log_lines[row] and S.log_lines[row].node
+      if owner and owner.result then loc = trx.failure_location(owner.result) end
+    end
   end
   if not loc and n:status() == 'failed' and n.result then
     loc = trx.failure_location(n.result)

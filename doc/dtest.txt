@@ -108,21 +108,23 @@ require('dtest').has_session()          Whether there is a session at all,
 5. LAYOUT                                                       *dtest-layout*
 
 The panes open beside the window |:Dtest| was called from, so the code
-stays on screen. Which way round they go follows the shape of the space
-they are given, and is re-checked when the terminal is resized: >
+stays on screen. By default they are carved off its right, the log over
+the tree, and stay that way whatever the window does: >
 
-    wide space                       tall space
-    +--------+-----------+           +---------------------+
-    | Tests  | Log       |           | Log           70%   |
-    |  30%   |  70%      |           +---------------------+
-    +--------+-----------+           | Tests         30%   |
-    | Ran 8 tests        |           +---------------------+
-    +--------------------+           | Ran 8 tests         |
-                                     +---------------------+
+    direction = 'vertical'           direction = 'horizontal'
+    +---------------------+          +--------+-----------+
+    | Log           70%   |          | Tests  | Log       |
+    +---------------------+          |  30%   |  70%      |
+    | Tests         30%   |          +--------+-----------+
+    +---------------------+          | Ran 8 tests        |
+    | Ran 8 tests         |          +--------------------+
+    +---------------------+
 <
-A cell is about twice as tall as it is wide, so a space counts as wide
-once it has at least 2.5 columns per line. `layout.direction` pins either
-arrangement; `layout.position` and `layout.size` say where the space comes
+Either `layout.direction` or `layout.position` may be 'auto' instead,
+which reads the shape of the space and picks: a cell is about twice as
+tall as it is wide, so a space counts as wide once it has at least 2.5
+columns per line, and the panes turn round again when a resize changes
+the answer. `layout.position` and `layout.size` say where the space comes
 from and how much of the window is given up to it. Beside the code the
 panes take a fifth of it, as a sidebar does; under it, two thirds, there
 being no code alongside to crowd. Neither goes below what can be read.
@@ -173,7 +175,9 @@ The tree-only keys (l, h, n, N, /, f, s, a, i, t, <Space>) are bound in the
 tree pane alone, so the log keeps Neovim's search and motions.
 
 `o` opens, in the window dtest was opened from: the file and line named by
-the log line under the cursor when it is a stack frame, else a failed
+the log line under the cursor when it is a stack frame; else, when the
+cursor is inside one failure of a group's log, that test's failing line,
+which is what makes `o` work from the whole solution's log; else a failed
 test's failing line, else the declaration of what is selected, found by
 scanning the project's sources.
 
@@ -257,8 +261,8 @@ itself, so they work from a buffer whose project is nowhere near it.
       build_on_open = true,  -- build once when the panes open
       prewarm = true,        -- list in the background at startup
       layout = {
-        direction = 'auto',  -- 'auto' | 'vertical' | 'horizontal'
-        position = 'auto',   -- 'auto' | 'right' | 'left' | 'below' | 'above'
+        direction = 'vertical', -- 'vertical' | 'horizontal' | 'auto'
+        position = 'right',  -- 'right' | 'left' | 'below' | 'above' | 'auto'
         size = nil,          -- a fifth beside the code, two thirds under it
         log_ratio = 0.7,     -- the log's share, the tree taking the rest
         footer = true,       -- the two summary lines

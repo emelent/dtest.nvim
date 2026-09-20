@@ -59,27 +59,37 @@ Lua: `require('dtest').open(target)`, `.toggle()`, `.hide()`, `.show(opts)`,
 
 ## The panes
 
-Three windows beside the window you were in, so the code stays on screen.
+Two windows beside the window you were in, so the code stays on screen.
 
 ![Freshly opened beside a source file: the tree listing ten projects,
 nothing run yet](screenshots/opened.png)
 
-Which way round they go follows the shape of the space, re-checked on resize:
+By default they are carved off its **right**, the log over the tree, and
+they stay that way whatever the window does. `layout.direction` turns them
+the other way round and `layout.position` puts them somewhere else:
 
 ```
-wide space                          tall space
-┌──────────┬───────────────┐        ┌───────────────────────┐
-│ Tests    │ Log           │        │ Log             70%   │
-│ 30%      │ 70%           │        ├───────────────────────┤
-├──────────┴───────────────┤        │ Tests           30%   │
-│ Ran 8 tests · 1 failed   │        ├───────────────────────┤
-└──────────────────────────┘        │ Ran 8 tests · 1 failed│
-                                    └───────────────────────┘
+direction = 'vertical' (the default)   direction = 'horizontal'
+┌───────────────────────┐              ┌──────────┬───────────────┐
+│ Log             70%   │              │ Tests    │ Log           │
+├───────────────────────┤              │ 30%      │ 70%           │
+│ Tests           30%   │              ├──────────┴───────────────┤
+├───────────────────────┤              │ Ran 8 tests · 1 failed   │
+│ Ran 8 tests · 1 failed│              └──────────────────────────┘
+└───────────────────────┘
 ```
+
+Either can be `'auto'` instead, which reads the shape of the space and
+picks — side by side once it has 2.5 columns per line, since a terminal
+cell is about twice as tall as it is wide — and turns the panes round again
+when a resize changes the answer. It is not the default: panes that are
+glanced at sidelong are worth more keeping one shape than taking the better
+one.
 
 - **Log** (70%) — the results of whatever the tree selects: verdict,
   message, failing location, stack trace and captured output for a test;
-  every failure beneath it for a group. Build errors first. It is an
+  every failure beneath it for a group, where `o` opens the one the cursor
+  is reading rather than the group itself. Build errors first. It is an
   ordinary buffer, so `/`, `n`, `V` and `y` work as they always do. `v`
   swaps in the raw `dotnet` output of the selected project.
 - **Tests** (30%) — projects, classes, methods and theory rows under a root
@@ -91,8 +101,7 @@ wide space                          tall space
   Messages take the upper line while there is something to say.
 
 Moving the cursor in the tree is what changes the log; there is no separate
-selection to keep track of. A terminal cell is about twice as tall as it is
-wide, so the panes go side by side once the space has 2.5 columns per line.
+selection to keep track of.
 
 ![One failing test selected in the tree, its message and stack trace alone in
 the log](screenshots/failure.png)
@@ -115,7 +124,7 @@ Press `?` in the tree for this list, which shows whatever keys are bound.
 | `a`, `<Esc>` | Show all tests again |
 | `x` | Cancel the running tests and drop the queue |
 | `n` / `N` | Next / previous failed test |
-| `o` | Open the source: the stack frame under the log cursor, else a failed test's failing line, else the declaration |
+| `o` | Open the source: the stack frame under the log cursor, else the failure whose block the cursor is in, else a failed test's failing line, else the declaration |
 | `t`, `/` | Filter the tree as you type; `<CR>` keeps the filter, `<Esc>` drops it |
 | `v` | Show the raw dotnet output of the selected project |
 | `<C-r>` | Rebuild and list the tests again |
@@ -198,8 +207,9 @@ require('dtest').setup({
   prewarm = true,        -- list the tests in the background at startup
 
   layout = {
-    direction = 'auto',  -- 'auto' | 'vertical' (stacked) | 'horizontal' (side by side)
-    position = 'auto',   -- 'auto' | 'right' | 'left' | 'below' | 'above'
+    direction = 'vertical', -- 'vertical' (stacked) | 'horizontal' (side by
+                         -- side) | 'auto' to follow the shape of the space
+    position = 'right',  -- 'right' | 'left' | 'below' | 'above' | 'auto'
     size = nil,          -- their share of the window: a fifth beside it,
                          -- two thirds under it, unless this says otherwise
     log_ratio = 0.7,     -- the log's share of the panes, the tree taking the rest

@@ -468,8 +468,14 @@ function M.node_log(session, node)
   end
   if #failed > 0 then
     for _, l in ipairs(failed) do
+      local from = #lines + 1
       lines[#lines + 1] = line()
       failure_lines(lines, l, false)
+      -- Every line of a failure's block remembers whose it is. A group's
+      -- log holds several tests' failures, and the line under the cursor
+      -- is the only thing that says which of them is being read, so
+      -- opening the source from here has to ask it rather than the group.
+      for i = from, #lines do lines[i].node = l end
     end
   elseif c.running > 0 or c.queued > 0 then -- the glyph says it is going
   elseif c.passed + c.skipped > 0 then

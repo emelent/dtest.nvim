@@ -96,7 +96,10 @@ either at what is still readable, but only when the size was not asked for
 outright. `direction_for` chooses between stacked and side by side at 2.5
 columns per line (a cell is about twice as tall as it is wide). `reorient` moves
 the tree with `nvim_win_set_config` when a resize changes the answer, which
-is cheaper and less jarring than rebuilding the layout.
+is cheaper and less jarring than rebuilding the layout. Both only do
+anything when the config asks for `'auto'`: the defaults pin the panes to
+the right, stacked, since a sidebar that keeps its shape is worth more than
+one that takes the better shape and has to be read again.
 
 ### How a run works
 
@@ -168,6 +171,16 @@ meanwhile.
 
 `plugin/dtest.lua` starts it at `VimEnter`, or right away when the file is
 sourced later than that, as it is when lazily loaded.
+
+### Which failure `o` opens
+
+A group's log is several tests' failures one after another, so the tree's
+selected node cannot say which one is being read. `render.node_log` tags
+every line of a failure's block with the leaf it came from (`line.node`, a
+named field, which `M.text` steps over since it iterates with `ipairs`),
+`draw_log` keeps the rendered lines in `S.log_lines`, and `open-in-editor`
+reads the tag under the cursor. A location parsed from the line itself
+still wins, being the more specific answer.
 
 ### Keys go through actions
 

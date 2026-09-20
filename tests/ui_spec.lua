@@ -364,6 +364,27 @@ return {
     t.restore_dotnet()
   end },
 
+  { 'opens the failure the log cursor is in, not the group the tree selected', function()
+    open()
+    ui.actions['run-all']()
+    run_and_wait()
+    -- The root is selected, so the log is every failure in the solution.
+    local log = t.lines('log')
+    local text, row = t.find_line(log, 'OverLimit_Returns429')
+    t.ok(row, 'the failure is in the overall log')
+    vim.api.nvim_set_current_win(pane('log'))
+    vim.api.nvim_win_set_cursor(pane('log'), { row, 0 })
+    -- The FAIL heading names no file of its own, so the line alone cannot
+    -- answer; before this was fixed, o opened nothing.
+    t.eq(nil, require('dtest.dotnet.source').location_in_line(text),
+      'the line itself holds no location')
+    ui.actions['open-in-editor']()
+    t.matches('RateLimitMiddlewareTests%.cs$', vim.api.nvim_buf_get_name(0))
+    t.eq(4, vim.api.nvim_win_get_cursor(0)[1])
+    ui.close()
+    t.restore_dotnet()
+  end },
+
   { 'queues runs and cancels the queue', function()
     local s = open()
     select('Shop%.Api%.Tests')
@@ -575,14 +596,32 @@ return {
     close()
     open({ position = 'below' })
     -- Under the code there is no code to crowd, so the panes take the
-    -- greater part of the height rather than a fifth of it.
+    -- greater part of the height rather than a fifth of it. All three are
+    -- counted, the log and the tree being stacked by default.
     local area = vim.api.nvim_win_get_height(pane('log'))
+      + vim.api.nvim_win_get_height(pane('tree'))
       + vim.api.nvim_win_get_height(pane('footer'))
     t.ok(area >= math.floor(vim.o.lines * 0.5), 'got ' .. area .. ' of ' .. vim.o.lines)
     close()
   end },
 
+  { 'opens on the right, stacked, whatever the shape of the window', function()
+    config.setup({ no_build = true }) -- the defaults, nothing pinned by hand
+    stub()
+    ui.open(fixture())
+    t.eq('vertical', ui.direction_for(400, 20), 'a wide space is stacked all the same')
+    t.eq('vertical', ui.direction_for(20, 400))
+    -- To the right of the code rather than under it, and stacked: the log
+    -- starts at the top of the tab with the tree below it.
+    t.ok(col_of(pane('log')) > 0, 'carved off the right, got column ' .. col_of(pane('log')))
+    t.eq(0, row_of(pane('log')), 'the log is the upper pane')
+    t.ok(row_of(pane('tree')) > row_of(pane('log')), 'the tree is under it, not beside it')
+    t.eq(col_of(pane('log')), col_of(pane('tree')), 'in the same column, so stacked')
+    close()
+  end },
+
   { 'reads a space as wide only once it is comfortably wider than tall', function()
+    config.setup({ layout = { direction = 'auto' } }) -- not the default any more
     t.eq('horizontal', ui.direction_for(200, 50))
     t.eq('vertical', ui.direction_for(100, 50), 'a cell is twice as tall as it is wide')
     t.eq('vertical', ui.direction_for(80, 40))

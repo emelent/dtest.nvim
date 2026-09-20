@@ -18,12 +18,15 @@ M.defaults = {
   layout = {
     -- Which way round the panes go: 'vertical' stacks the log over the
     -- tree, 'horizontal' puts the tree left of the log, and 'auto' takes
-    -- whichever suits the shape of the space they are given.
-    direction = 'auto',
+    -- whichever suits the shape of the space they are given. Pinned by
+    -- default: a sidebar that keeps its shape is worth more than one that
+    -- picks the better shape, since the panes are looked at sidelong and
+    -- a layout that moves has to be read again.
+    direction = 'vertical',
     -- Where that space is carved out of the window they open from:
     -- 'right', 'left', 'below', 'above', or 'auto' for beside a wide
     -- window and under any other.
-    position = 'auto',
+    position = 'right',
     -- The share of that window they take: a fifth of it beside, two
     -- thirds of it under, unless this says otherwise.
     size = nil,
