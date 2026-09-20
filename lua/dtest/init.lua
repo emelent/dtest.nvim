@@ -32,18 +32,22 @@ function M.is_open()
   return require('dtest.ui').is_open()
 end
 
---- Runs everything, opening the panes first when they are closed.
+--- Runs everything, opening the panes first when they are closed. The
+--- cursor stays where it is: the panes sit beside the code, so there is
+--- nothing to go over to.
 function M.run_all()
   local ui = require('dtest.ui')
-  if not ui.is_open() then ui.open() end
-  ui.actions['run-all']()
+  local session = ui.ensure_open({ focus = false })
+  if not session then return end
+  session:when_listed(function() ui.actions['run-all']() end)
 end
 
 --- Re-runs the tests that failed last time.
 function M.run_failed()
   local ui = require('dtest.ui')
-  if not ui.is_open() then ui.open() end
-  ui.actions['run-failed']()
+  local session = ui.ensure_open({ focus = false })
+  if not session then return end
+  session:when_listed(function() ui.actions['run-failed']() end)
 end
 
 -- What to open for a file when nothing is configured: the working
@@ -62,9 +66,10 @@ end
 local function run_from_buffer(pick, opts)
   opts = opts or {}
   local ui = require('dtest.ui')
-  -- The panes are where the results are, so that is where this ends up,
-  -- unless it is asked to run in the background.
-  local focus = opts.focus ~= false
+  -- Opening the panes is what moves the cursor into them; a run asked for
+  -- from the code leaves it in the code, since the panes are beside it
+  -- and there to be glanced at.
+  local focus = opts.focus == true
   local buf = opts.buf or vim.api.nvim_get_current_buf()
   local path = vim.api.nvim_buf_get_name(buf)
   if path == '' then
@@ -75,12 +80,8 @@ local function run_from_buffer(pick, opts)
   local lines = vim.api.nvim_buf_get_lines(buf, 0, -1, false)
   local row = opts.line or vim.api.nvim_win_get_cursor(0)[1]
 
-  -- Opening the panes moves there anyway, so it happens at once; panes
-  -- that are already open are joined only once there is something to
-  -- watch, so a buffer holding no tests never pulls the cursor out of it.
-  local was_open = ui.is_open()
   local session = ui.ensure_open({
-    focus = focus and not was_open,
+    focus = false, -- moved to only once there is something to watch
     target = opts.target or target_for(path),
   })
   if not session then return end
@@ -103,8 +104,8 @@ local function run_from_buffer(pick, opts)
   end)
 end
 
---- Runs every test the current buffer's file declares, and shows them.
---- @param opts table|nil {focus=, buf=, target=}; focus=false stays put
+--- Runs every test the current buffer's file declares.
+--- @param opts table|nil {focus=, buf=, target=}; focus=true goes to the panes
 function M.run_file(opts)
   run_from_buffer(function(session, path, lines)
     return session:classes_in(path, lines)
@@ -112,13 +113,73 @@ function M.run_file(opts)
 end
 
 --- Runs the test the cursor is on, or the class it is in when the cursor
---- is above the first test, and shows it.
---- @param opts table|nil {focus=, buf=, line=, target=}; focus=false stays put
+--- is above the first test.
+--- @param opts table|nil {focus=, buf=, line=, target=}; focus=true goes
+--- to the panes
 function M.run_nearest(opts)
   run_from_buffer(function(session, path, lines, row)
     local node, why = session:node_at(path, lines, row)
     return node and { node } or {}, why
   end, opts)
+end
+
+--- Runs a folder of tests: a namespace under a project, or the project
+--- itself. Without a path it asks which, in Snacks' picker when that is
+--- installed and in vim.ui.select otherwise.
+--- @param opts table|nil {path=, focus=, target=}; focus=true goes to the
+--- panes once something is running
+function M.run_folder(opts)
+  opts = opts or {}
+  local ui = require('dtest.ui')
+  local focus = opts.focus == true
+  local here = vim.api.nvim_buf_get_name(0)
+  local session = ui.ensure_open({
+    focus = false,
+    target = opts.target or (here ~= '' and target_for(vim.fs.normalize(here)) or nil),
+  })
+  if not session then return end
+  session:when_listed(function()
+    local folders = session:folders()
+    if #folders == 0 then
+      ui.announce('No tests to run', true)
+      return
+    end
+    local function run(folder)
+      local nodes = session:classes_under(folder)
+      if #nodes == 0 then
+        ui.announce('No tests in ' .. folder.path, true)
+        return
+      end
+      -- The folder is not a node of the tree, so the view is put on the
+      -- project holding it with its own classes opened and the rest left
+      -- as they were.
+      ui.focus_on(require('dtest.tree').common_ancestor(nodes))
+      for _, node in ipairs(nodes) do
+        node:set_expanded(true)
+      end
+      ui.reveal(nodes[1])
+      session:enqueue(nodes, {
+        keep_open = true,
+        filter = folder.prefix and require('dtest.dotnet.filter').prefix(folder.prefix) or '',
+        label = folder.path,
+      })
+      if focus then ui.focus() end
+    end
+    if opts.path then
+      for _, folder in ipairs(folders) do
+        if folder.path == opts.path then return run(folder) end
+      end
+      ui.announce('No folder of tests called ' .. opts.path, true)
+      return
+    end
+    require('dtest.pick').folder(folders, run)
+  end)
+end
+
+--- The folders a completion or a picker can offer, for the commands.
+function M.folders()
+  local session = require('dtest.ui').session()
+  return session and session:folders() or {}
 end
 
 --- Rebuilds and lists the tests again.

@@ -221,9 +221,12 @@ end
 --- Queues a run for each project the nodes belong to and starts the first
 --- when nothing else is running.
 --- @param opts table|nil {keep_open=true} leaves the folds alone when the
---- run ends, for a view that was opened on purpose
+--- run ends, for a view that was opened on purpose; {filter=, label=}
+--- runs one expression of its own instead of one per node, for a whole
+--- folder of tests, which no single node stands for
 function Session:enqueue(nodes, opts)
-  self.keep_open = opts ~= nil and opts.keep_open or false
+  opts = opts or {}
+  self.keep_open = opts.keep_open or false
   -- Nothing running means this starts a new batch, so the footer describes
   -- these runs and not the last ones.
   if not self.run then
@@ -266,8 +269,8 @@ function Session:enqueue(nodes, opts)
     end
     self:queue_run({
       target = p,
-      filter = require('dtest.dotnet.filter').join(filters),
-      label = p.name .. ' › ' .. table.concat(labels, ', '),
+      filter = opts.filter or require('dtest.dotnet.filter').join(filters),
+      label = p.name .. ' › ' .. (opts.label or table.concat(labels, ', ')),
       leaves = leaves,
     })
   end
@@ -445,6 +448,61 @@ end
 function Session:shutdown()
   self.queue = {}
   if self.run then self.run.handle.cancel() end
+end
+
+-- Folders of tests.
+
+--- Every folder that holds tests, a folder being a namespace under a
+--- project, and the project itself. A folder's tally counts everything
+--- beneath it, nested folders included, since running it runs those too.
+--- @return table[] folders {project=, prefix=, path=, count=}, in path order
+function Session:folders()
+  local found, order = {}, {}
+  local function fold(project, prefix, path, count)
+    local key = project.path .. '\0' .. path
+    if not found[key] then
+      found[key] = { project = project, prefix = prefix, path = path, count = 0 }
+      order[#order + 1] = found[key]
+    end
+    found[key].count = found[key].count + count
+  end
+  for _, project in ipairs(self.tree.projects) do
+    for _, node in ipairs(tree.collect(project)) do
+      if node.kind == 'class' then
+        local count = #node:leaves()
+        -- The class's namespace read one segment at a time, so every
+        -- folder above it is offered as well as its own.
+        local rest, base = node.fqn, nil
+        if vim.startswith(node.fqn, project.name .. '.') then
+          base = project.name
+          rest = node.fqn:sub(#project.name + 2)
+        end
+        local segments = vim.split(rest, '.', { plain = true })
+        table.remove(segments) -- the class itself is not a folder
+        -- The project is the folder every one of its tests is under,
+        -- whatever namespace they are in, so it runs unfiltered.
+        fold(project, nil, project.name, count)
+        for i = 1, #segments do
+          local ns = table.concat(vim.list_slice(segments, 1, i), '.')
+          fold(project, (base and base .. '.' or '') .. ns .. '.',
+            project.name .. '/' .. ns:gsub('%.', '/'), count)
+        end
+      end
+    end
+  end
+  table.sort(order, function(a, b) return a.path < b.path end)
+  return order
+end
+
+--- The class nodes a folder holds, which is what running it runs.
+function Session:classes_under(folder)
+  local nodes = {}
+  for _, node in ipairs(tree.collect(folder.project)) do
+    if node.kind == 'class' and (not folder.prefix or vim.startswith(node.fqn, folder.prefix)) then
+      nodes[#nodes + 1] = node
+    end
+  end
+  return nodes
 end
 
 -- Finding the tests a source file holds.

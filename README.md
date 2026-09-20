@@ -65,9 +65,11 @@ either way. `layout.direction` pins one of them if you would rather not
 have it decided for you.
 
 The panes themselves are carved out of the window `:Dtest` was called
-from: beside it when that window is wide, under it when it is not, taking
-half or two thirds of it. `layout.position` and `layout.size` say
-otherwise. `<C-j>` / `<C-k>` or `<Tab>` move between the two panes; `q`
+from: beside it when that window is wide, under it when it is not. Beside
+it they take a fifth of it, the way a sidebar does, and under it two
+thirds, there being no code alongside to crowd; either way never so little
+that they cannot be read. `layout.position` and `layout.size` say
+otherwise — `size = 0.35` for a wider column, say. `<C-j>` / `<C-k>` or `<Tab>` move between the two panes; `q`
 closes them and puts you back where you started.
 
 - **Log** (the larger pane, 70%) shows the results of whatever the tree
@@ -129,7 +131,9 @@ selection to keep track of.
 - The `dotnet` SDK on your `PATH`, with test projects using the VSTest
   runner (`Microsoft.NET.Test.Sdk` with xUnit, NUnit or MSTest)
 
-No other plugins, and nothing to compile.
+No other plugins, and nothing to compile. [Snacks](https://github.com/folke/snacks.nvim)
+is used for the `:DtestFolder` list when it happens to be installed;
+without it the choice goes through `vim.ui.select`.
 
 ## Install
 
@@ -138,10 +142,24 @@ With [lazy.nvim](https://github.com/folke/lazy.nvim):
 ```lua
 {
   'emelent/nvim-dtest',
-  cmd = { 'Dtest', 'DtestToggle', 'DtestRun' },
+  -- Every command, or the ones left out will not exist until one of these
+  -- has loaded the plugin.
+  cmd = {
+    'Dtest', 'DtestToggle', 'DtestClose',
+    'DtestRun', 'DtestRunFailed', 'DtestReload',
+    'DtestFile', 'DtestNearest', 'DtestFolder',
+  },
+  keys = {
+    { '<leader>tt', function() require('dtest').run_nearest() end, desc = 'Run the test at the cursor' },
+    { '<leader>tf', function() require('dtest').run_file() end, desc = 'Run the tests in this file' },
+  },
   opts = {},
 }
 ```
+
+Leaving `cmd` out altogether loads it at startup, which costs nothing much:
+`plugin/dtest.lua` registers the commands and requires nothing else until
+one of them is run.
 
 With [packer](https://github.com/wbthomason/packer.nvim):
 
@@ -162,13 +180,48 @@ the commands still work.
 | `:DtestClose` | Close them and stop whatever dotnet is doing |
 | `:DtestRun` | Open if needed, then run every test |
 | `:DtestRunFailed` | Re-run the tests that failed last time |
-| `:DtestFile[!]` | Run the tests in the file you are editing, and show them (`!` stays in the buffer) |
-| `:DtestNearest[!]` | Run the test the cursor is on, and show it (`!` stays in the buffer) |
+| `:DtestFile[!]` | Run the tests in the file you are editing (`!` goes to the panes) |
+| `:DtestNearest[!]` | Run the test the cursor is on (`!` goes to the panes) |
+| `:DtestFolder[!] [path]` | Run a folder of tests, choosing which from a fuzzy list (`!` goes to the panes) |
 | `:DtestReload` | Rebuild and list the tests again |
 
 The same from Lua: `require('dtest').open(target)`, `.toggle()`,
 `.close()`, `.run_all()`, `.run_failed()`, `.run_file(opts)`,
-`.run_nearest(opts)`, `.reload()`, `.is_open()`.
+`.run_nearest(opts)`, `.run_folder(opts)`, `.reload()`, `.is_open()`.
+
+**Only `:Dtest` and `:DtestToggle` take the cursor.** Every other command
+opens the panes if they are closed and then leaves you where you were —
+they sit beside the code to be glanced at, not moved into. Pass `!` (or
+`{ focus = true }`) to the run commands to be taken there anyway.
+
+### A folder of tests
+
+`:DtestFolder` asks which folder to run and runs it:
+
+```
+╭──────────────────────── dtest folders ─────────────────────────╮
+│ valid                                                     1/9 │
+│────────────────────────────────────────────────────────────────│
+│ Shop.Core.Tests/Orders/Validation  9 tests                     │
+╰────────────────────────────────────────────────────────────────╯
+```
+
+The list is built from the tree, so every entry is a folder that really
+holds tests, with everything under it counted — picking `Orders` runs
+`Orders/Validation` too. A project is a folder like any other and runs
+unfiltered; a namespace runs as one `FullyQualifiedName~Ns.` filter rather
+than one expression per class. The tree is focused on what ran, its
+classes opened, while your cursor stays where it was.
+
+Folders are namespaces, which .NET lays out as directories by convention.
+A `path` argument skips the prompt — `:DtestFolder Shop.Core.Tests/Pricing`
+— and completes on the folders the open session knows.
+
+The list is shown in [Snacks](https://github.com/folke/snacks.nvim)'
+picker when that is installed, under the source name `dtest_folders`, so
+`Snacks.picker.config.sources.dtest_folders` can change its layout or keys.
+Without Snacks it goes through `vim.ui.select`, which is whatever your
+editor already uses for a choice.
 
 ### From the file you are editing
 
@@ -183,14 +236,15 @@ the tree, so a test can be run without leaving the line being written.
   class is what runs. A theory runs all of its rows, since a single row
   cannot be addressed by name.
 
-Both take you to the panes, opening them beside the buffer when they are
-closed, and the tree is **focused on what the file holds** — the class
-it declares becomes the root of the tree, drawn flush, exactly as `i`
-would, and every test under it is unfolded, theory rows and all. From then
-on `A` runs that class and `n` looks for failures inside it; `I` steps back
-out a level at a time. The tree stays open through that run rather than
-folding its passing groups away at the end, since opening it was the point;
-the next run started from the panes reads as a report again. A file declaring several classes focuses the project they
+Neither takes the cursor: the panes open beside the buffer if they were
+closed, and you carry on typing while the tree fills in. What the tree
+shows is **focused on what the file holds** — the class it declares
+becomes the root of the tree, drawn flush, exactly as `i` would, and every
+test under it is unfolded, theory rows and all. From then on `A` runs that
+class and `n` looks for failures inside it; `I` steps back out a level at a
+time. The tree stays open through that run rather than folding its passing
+groups away at the end, since opening it was the point; the next run
+started from the panes reads as a report again. A file declaring several classes focuses the project they
 share. A buffer holding nothing dtest knows about is the exception: there
 is nothing to watch, so it says so and leaves you where you are.
 
@@ -200,16 +254,15 @@ vim.keymap.set('n', '<leader>tf', function() require('dtest').run_file() end)
 vim.keymap.set('n', '<leader>ta', require('dtest').run_all)
 ```
 
-Add a `!` (or pass `{ focus = false }`) to run in the background instead:
-the cursor stays on the line being written, and how the run went is echoed
-when it finishes.
+Add a `!` (or pass `{ focus = true }`) to be taken to the panes when the
+run starts.
+
+When the panes are on a tab you are not looking at, how the run went is
+echoed when it finishes instead:
 
 ```
 dtest: Shop — 1 failed | 7 passed | 0 skipped
 ```
-
-That line is echoed after any run whose panes are not the tab being looked
-at, however it was started.
 
 Both read the buffer rather than the file on disk, so an unsaved edit that
 renames a test is seen — though of course only a saved, built one can
@@ -290,7 +343,8 @@ require('dtest').setup({
     direction = 'auto',  -- 'auto' | 'vertical' (stacked) | 'horizontal' (side by side)
     position = 'auto',   -- where they are carved out of the current window:
                          -- 'auto' | 'right' | 'left' | 'below' | 'above'
-    size = nil,          -- their share of that window; nil picks one
+    size = nil,          -- their share of that window: a fifth beside it,
+                         -- two thirds under it, unless this says otherwise
     log_ratio = 0.7,     -- the log's share of the panes, the tree taking the rest
     footer = true,       -- the two summary lines along the bottom
   },
@@ -381,6 +435,7 @@ lua/dtest/config.lua    defaults, key bindings, colours
 lua/dtest/session.lua   the model: the queue of runs, the batch, the logs
 lua/dtest/tree.lua      solution → project → class → method → case nodes
 lua/dtest/context.lua   reading a source buffer: its classes, the test at the cursor
+lua/dtest/pick.lua      the folder list, through Snacks' picker or vim.ui.select
 lua/dtest/dotnet/       the CLI: solutions, --list-tests, runs, TRX, filters, source lookup
 lua/dtest/ui/           the panes: windows, rendering, highlights, the filter prompt
 ```

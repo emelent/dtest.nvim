@@ -39,6 +39,11 @@ The dependency direction is one way: `ui` → `session` → `tree`, `dotnet`.
   is on its own — candidate names come from what dotnet listed — and it
   only ever looks at declarations, which is what keeps a call to another
   test from answering for it.
+- **`lua/dtest/pick.lua`** asks which folder to run: Snacks' picker when
+  it is installed, `vim.ui.select` when it is not. Nothing else in the
+  plugin depends on a plugin, and this must not either — every call into
+  Snacks is behind a `pcall`, and a picker that will not open falls back
+  rather than failing.
 - **`lua/dtest/session.lua`** is the model: the queue of runs, the batch the
   summary reports on, the raw output of each run. It knows nothing about
   windows; it calls `on_change` and the UI decides when to draw.
@@ -62,8 +67,11 @@ every window in the tab an equal share and the space taken would grow with
 every step. Sizes are measured off the window being split **before** it is
 split, since by then it has already given half of itself away.
 
-`direction_for` chooses between stacked and side by side at 2.5 columns
-per line (a cell is about twice as tall as it is wide). `reorient` moves
+A side split takes `side_share` (a fifth) of the window it opens beside
+and a split under one takes `under_share` (two thirds); `share()` floors
+either at what is still readable, but only when the size was not asked for
+outright. `direction_for` chooses between stacked and side by side at 2.5
+columns per line (a cell is about twice as tall as it is wide). `reorient` moves
 the tree with `nvim_win_set_config` when a resize changes the answer, which
 is cheaper and less jarring than rebuilding the layout.
 
@@ -84,6 +92,18 @@ A solution-wide run writes one .trx per project, so the trx logger is used
 without `LogFileName` and every file in the results directory is read.
 Naming them all the same leaves only the last project's messages.
 
+### Folders
+
+`Session:folders()` reads the folders out of the tree rather than off the
+disk: a folder is a namespace under a project, plus the project itself.
+Every namespace prefix of every class becomes an entry, so a parent folder
+is offered as well as the leaf one, and its tally counts everything
+beneath. The project entry has no prefix on purpose — it runs unfiltered,
+so a class in some unrelated namespace still runs with it.
+
+A folder is not a node of the tree, so `enqueue` takes `{filter, label}` to
+run one expression of its own over the classes it holds.
+
 ### Running from a source buffer
 
 `run_file` and `run_nearest` in `init.lua` read the buffer **before**
@@ -92,12 +112,14 @@ They go through `Session:when_listed`, because the listing they need is
 started by the very call that opens the panes; anything waiting is let
 through when `loading` reaches zero.
 
-Both end up in the panes, but *when* they switch differs on purpose: panes
-that have to be opened are switched to at once, since opening moves there
-anyway, while panes already open are joined only once the pick has found
-something — so a buffer holding no tests never yanks the cursor out of it.
-`session.on_batch_end` echoes the outcome when the dtest tab is not the one
-being looked at, which is what makes `focus = false` usable.
+Neither takes the cursor, and neither does any other command: only `open`
+and `toggle` do. The panes are windows beside the code, so a run is
+watched without moving into them, and `ensure_open({focus = false})` puts
+the cursor back when opening them moved it. `focus = true` (the commands'
+`!`) goes there once there is something to watch — after the pick, so a
+buffer holding no tests never moves the cursor at all.
+`session.on_batch_end` echoes the outcome when the panes are on another
+tab page, where nothing can be glanced at.
 
 They also zoom the tree, through `ui.focus_on(tree.common_ancestor(nodes),
 { expand = true })`: one class per file is the common case, so the file

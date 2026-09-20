@@ -29,12 +29,27 @@ vim.api.nvim_create_user_command('DtestRunFailed', function()
 end, { desc = 'Re-run the tests that failed last time' })
 
 vim.api.nvim_create_user_command('DtestFile', function(cmd)
-  require('dtest').run_file({ focus = not cmd.bang })
-end, { bang = true, desc = "Run the tests in this buffer's file (! stays in the buffer)" })
+  require('dtest').run_file({ focus = cmd.bang })
+end, { bang = true, desc = "Run the tests in this buffer's file (! goes to the panes)" })
 
 vim.api.nvim_create_user_command('DtestNearest', function(cmd)
-  require('dtest').run_nearest({ focus = not cmd.bang })
-end, { bang = true, desc = 'Run the test the cursor is on (! stays in the buffer)' })
+  require('dtest').run_nearest({ focus = cmd.bang })
+end, { bang = true, desc = 'Run the test the cursor is on (! goes to the panes)' })
+
+vim.api.nvim_create_user_command('DtestFolder', function(cmd)
+  require('dtest').run_folder({ path = cmd.args ~= '' and cmd.args or nil, focus = cmd.bang })
+end, {
+  bang = true,
+  nargs = '?',
+  complete = function(arg)
+    local paths = {}
+    for _, folder in ipairs(require('dtest').folders()) do
+      if folder.path:find(arg, 1, true) == 1 then paths[#paths + 1] = folder.path end
+    end
+    return paths
+  end,
+  desc = 'Run a folder of tests, choosing which (! goes to the panes)',
+})
 
 vim.api.nvim_create_user_command('DtestReload', function()
   require('dtest').reload()

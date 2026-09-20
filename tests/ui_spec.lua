@@ -91,8 +91,23 @@ local function results_for(names)
   return results
 end
 
+-- The VSTest filter as dotnet reads it: = is the whole name, ~ is any
+-- part of it, | is either of two.
+local function matches(filter, name)
+  if not filter or filter == '' then return true end
+  for clause in vim.gsplit(filter, '|', { plain = true }) do
+    local op, value = clause:match('^FullyQualifiedName([=~])(.*)$')
+    if value then
+      value = value:gsub('\\(.)', '%1')
+      if op == '=' and value == name then return true end
+      if op == '~' and name:find(value, 1, true) then return true end
+    end
+  end
+  return false
+end
+
 local function console(names)
-  local lines = { 'Test run for ' .. names[1] }
+  local lines = { 'Test run for Shop.Tests.dll' }
   for _, r in ipairs(results_for(names)) do
     lines[#lines + 1] = string.format('  %s %s [1 ms]', r.outcome, r.name)
   end
@@ -117,11 +132,7 @@ local function stub()
         and vim.list_extend(vim.deepcopy(api_tests), core_tests)
         or names_for(cmd[3])
       local filter = arg_of(cmd, '--filter')
-      if filter then
-        names = vim.tbl_filter(function(n)
-          return filter:find(n, 1, true) ~= nil or filter:find(n:match('^(.*)%.[^%.]+$'), 1, true) ~= nil
-        end, names)
-      end
+      names = vim.tbl_filter(function(n) return matches(filter, n) end, names)
       return { lines = console(names), trx = t.trx(results_for(names)) }
     end,
   })
@@ -438,20 +449,20 @@ return {
     close()
   end },
 
-  { 'runs the tests of the file in the buffer and shows them', function()
+  { 'runs the tests of the file in the buffer, without leaving it', function()
     open()
     local source = in_source_buffer()
     require('dtest').run_file({})
     run_and_wait()
-    t.eq(t.pane_buf('tree'), vim.api.nvim_get_current_buf(),
-      'the panes are where it lands')
+    t.matches('RateLimitMiddlewareTests%.cs$', vim.api.nvim_buf_get_name(0),
+      'the cursor stays in the code; the panes are beside it to be glanced at')
     t.eq('FullyQualifiedName~Shop.Api.Tests.Middleware.RateLimitMiddlewareTests.',
       arg_of(commands[#commands], '--filter'))
     t.ok(t.find_line(t.lines('tree'), 'OverLimit_Returns429'), 'the tree opens on what ran')
     local s = ui.session()
     t.eq('Middleware.RateLimitMiddlewareTests', s.zoom.name, "the tree narrows to the file's class")
     t.eq(s.zoom, s:rows()[1], 'which becomes the root of the tree')
-    t.matches('RateLimitMiddlewareTests', vim.wo[pane('tree')].winbar,
+    t.matches('MiddlewareTests', vim.wo[pane('tree')].winbar,
       'and the title says what is in focus')
     ui.actions.unfocus()
     t.eq('Shop.Api.Tests', s.zoom.name, 'and steps back out a level at a time')
@@ -477,14 +488,30 @@ return {
     close()
   end },
 
-  { 'stays in the buffer when asked to run in the background', function()
+  { 'goes to the panes when it is asked to', function()
     open()
-    local source = in_source_buffer()
-    require('dtest').run_file({ focus = false })
+    in_source_buffer()
+    require('dtest').run_file({ focus = true })
     run_and_wait()
-    t.matches('RateLimitMiddlewareTests%.cs$', vim.api.nvim_buf_get_name(0),
-      'the cursor stays in the code the run came from')
+    t.eq(t.pane_buf('tree'), vim.api.nvim_get_current_buf(), 'which is what the bang does')
     t.eq(1, ui.session().tree:counts().failed)
+    close()
+  end },
+
+  { 'opens the panes for a run without moving into them', function()
+    commands = {}
+    config.setup({ no_build = true })
+    stub()
+    local target = fixture()
+    commands.source = vim.fs.dirname(target) .. '/tests/' .. API .. '/RateLimitMiddlewareTests.cs'
+    vim.cmd('edit! ' .. vim.fn.fnameescape(commands.source))
+    config.options.target = target
+    require('dtest').run_all()
+    t.wait(function() return ui.is_open() and ui.session().batch_end ~= nil end, 'the run to finish')
+    t.matches('RateLimitMiddlewareTests%.cs$', vim.api.nvim_buf_get_name(0),
+      'opened beside the code, not over it')
+    t.eq(6, ui.session().tree:counts().passed + ui.session().tree:counts().failed,
+      'and it waited for the listing before running')
     close()
   end },
 
@@ -536,6 +563,24 @@ return {
     close()
   end },
 
+  { 'takes a fifth of the window it opens beside, and no less than reads', function()
+    open({ position = 'right' })
+    -- A fifth of the 80 columns a headless editor has is too narrow to
+    -- read, so the floor stands; the code keeps the rest either way.
+    t.eq(30, vim.api.nvim_win_get_width(pane('log')))
+    close()
+    open({ position = 'right', size = 0.5 })
+    t.eq(40, vim.api.nvim_win_get_width(pane('log')), 'a size asked for is taken as it stands')
+    close()
+    open({ position = 'below' })
+    -- Under the code there is no code to crowd, so the panes take the
+    -- greater part of the height rather than a fifth of it.
+    local area = vim.api.nvim_win_get_height(pane('log'))
+      + vim.api.nvim_win_get_height(pane('footer'))
+    t.ok(area >= math.floor(vim.o.lines * 0.5), 'got ' .. area .. ' of ' .. vim.o.lines)
+    close()
+  end },
+
   { 'reads a space as wide only once it is comfortably wider than tall', function()
     t.eq('horizontal', ui.direction_for(200, 50))
     t.eq('vertical', ui.direction_for(100, 50), 'a cell is twice as tall as it is wide')
@@ -546,7 +591,7 @@ return {
   end },
 
   { 'stacks the log over the tree, 70 to 30', function()
-    open({ direction = 'vertical' })
+    open({ direction = 'vertical', size = 0.9 })
     local log, tree, footer = pane('log'), pane('tree'), pane('footer')
     t.ok(row_of(log) < row_of(tree), 'the log is on top')
     t.eq(col_of(log), col_of(tree), 'stacked, so they start in the same column')
@@ -559,7 +604,7 @@ return {
   end },
 
   { 'sits the tree left of the log, 30 to 70, with the summary under both', function()
-    open({ direction = 'horizontal' })
+    open({ direction = 'horizontal', size = 0.9 })
     local log, tree, footer = pane('log'), pane('tree'), pane('footer')
     t.ok(col_of(tree) < col_of(log), 'the tree is on the left')
     t.eq(row_of(tree), row_of(log), 'side by side, so they start on the same row')
@@ -572,16 +617,16 @@ return {
   end },
 
   { 'turns the panes round when the space changes shape', function()
-    open({ direction = 'vertical' })
+    open({ direction = 'vertical', size = 0.9 })
     t.ok(row_of(pane('log')) < row_of(pane('tree')))
-    config.setup({ no_build = true, layout = { direction = 'horizontal' } })
+    config.setup({ no_build = true, layout = { direction = 'horizontal', size = 0.9 } })
     ui.reorient()
     ui.resize()
     t.ok(col_of(pane('tree')) < col_of(pane('log')), 'the tree moved beside the log')
     t.eq(row_of(pane('tree')), row_of(pane('log')))
     ui.reorient() -- and back again
     t.eq('horizontal', ui.direction_for(400, 20), 'still pinned')
-    config.setup({ no_build = true, layout = { direction = 'vertical' } })
+    config.setup({ no_build = true, layout = { direction = 'vertical', size = 0.9 } })
     ui.reorient()
     t.ok(row_of(pane('log')) < row_of(pane('tree')), 'and back under it')
     close()
@@ -596,6 +641,95 @@ return {
     close()
     t.eq(1, #vim.api.nvim_tabpage_list_wins(0), 'a window is left in their place')
     t.eq(false, ui.is_open())
+  end },
+
+  { 'lists the folders of tests, the projects and their namespaces', function()
+    local s = open()
+    local paths = {}
+    for _, folder in ipairs(s:folders()) do
+      paths[#paths + 1] = folder.path .. ' (' .. folder.count .. ')'
+    end
+    t.eq({
+      'Shop.Api.Tests (4)',
+      'Shop.Api.Tests/Middleware (4)',
+      'Shop.Core.Tests (2)',
+      'Shop.Core.Tests/Pricing (2)',
+    }, paths)
+    close()
+  end },
+
+  { 'runs a folder with one filter over its namespace', function()
+    open()
+    require('dtest').run_folder({ path = 'Shop.Api.Tests/Middleware' })
+    run_and_wait()
+    local last = commands[#commands]
+    t.matches('Shop%.Api%.Tests%.csproj$', last[3], 'inside the project that holds it')
+    t.eq('FullyQualifiedName~Shop.Api.Tests.Middleware.', arg_of(last, '--filter'),
+      'one prefix, not one expression per class')
+    t.eq(1, ui.session().tree:counts().failed)
+    t.eq('Middleware.RateLimitMiddlewareTests', ui.session().zoom.name,
+      'the view goes to what the folder holds, one class here')
+    t.ok(t.find_line(t.lines('tree'), 'OverLimit_Returns429'), 'with the folder opened up')
+    close()
+  end },
+
+  { 'runs a whole project unfiltered when that is the folder chosen', function()
+    open()
+    require('dtest').run_folder({ path = 'Shop.Core.Tests' })
+    run_and_wait()
+    local last = commands[#commands]
+    t.matches('Shop%.Core%.Tests%.csproj$', last[3])
+    t.eq(nil, arg_of(last, '--filter'), 'a project runs as it is')
+    close()
+  end },
+
+  { 'says so when the folder asked for is not one', function()
+    local s = open()
+    local ran = #commands
+    require('dtest').run_folder({ path = 'Shop.Api.Tests/Nowhere' })
+    t.matches('No folder of tests called', s.message.text)
+    t.eq(ran, #commands)
+    close()
+  end },
+
+  { 'asks which folder, through the picker the editor has', function()
+    open()
+    local asked, chosen
+    local select = vim.ui.select
+    vim.ui.select = function(items, opts, on_choice)
+      asked = { items = items, prompt = opts.prompt, shown = opts.format_item(items[2]) }
+      chosen = on_choice
+    end
+    require('dtest').run_folder({})
+    vim.ui.select = select
+    t.eq(4, #asked.items, 'every folder is offered')
+    t.matches('Shop%.Api%.Tests/Middleware%s+4 tests', asked.shown, 'with what is under it')
+    chosen(asked.items[2]) -- Shop.Api.Tests/Middleware
+    run_and_wait()
+    t.eq('FullyQualifiedName~Shop.Api.Tests.Middleware.', arg_of(commands[#commands], '--filter'))
+    close()
+  end },
+
+  { 'prefers Snacks when it is installed', function()
+    open()
+    local given
+    package.loaded.snacks = { picker = { pick = function(o) given = o end } }
+    require('dtest').run_folder({})
+    package.loaded.snacks = nil
+    t.ok(given, 'the picker was opened')
+    t.eq('dtest folders', given.title)
+    t.eq('Shop.Api.Tests', given.items[1].text, 'matched on the path')
+    local row = given.format(given.items[2])
+    t.eq('Shop.Api.Tests/Middleware', row[1][1])
+    t.matches('4 tests', row[3][1])
+    -- Confirming runs it, the way the picker would.
+    local closed = false
+    given.actions.confirm({ close = function() closed = true end }, given.items[2])
+    t.ok(closed, 'and the picker closes first')
+    vim.wait(200, function() return #ui.session().queue > 0 or ui.session().run ~= nil end, 10)
+    run_and_wait()
+    t.eq('FullyQualifiedName~Shop.Api.Tests.Middleware.', arg_of(commands[#commands], '--filter'))
+    close()
   end },
 
   { 'binds the keys the config names', function()

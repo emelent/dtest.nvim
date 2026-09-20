@@ -54,6 +54,15 @@ end
 -- reads as wide once it is comfortably past that.
 local wide_enough = 2.5
 
+-- What the panes take of the window they open beside or under. A column
+-- beside the code is a sidebar, so it is a fifth of it; under it there is
+-- no code to crowd, so it is the greater part.
+local side_share, under_share = 0.2, 0.65
+
+-- Below these the panes stop being readable. A share that lands under one
+-- is raised to it, though never past half of what it is taking from.
+local min_width, min_height = 30, 8
+
 --- Which way round the panes go in a space that size: 'horizontal' puts
 --- the tree left of the log, 'vertical' stacks the log over it. The config
 --- may pin either, in which case the shape is not consulted.
@@ -74,7 +83,18 @@ local function placement(win)
     where = width >= wide_enough * height and 'right' or 'below'
   end
   local side = where == 'right' or where == 'left'
-  return where, config.options.layout.size or (side and 0.5 or 0.65), side
+  return where, config.options.layout.size or (side and side_share or under_share), side
+end
+
+-- The share of had cells to take, with a floor under it so a small share
+-- of a small window is still worth looking at. An explicit size is left
+-- alone: asking for a sliver is asking for one.
+local function share(had, size, floor_at)
+  local want = math.floor(had * size)
+  if config.options.layout.size == nil and want < floor_at then
+    want = math.min(floor_at, math.floor(had / 2))
+  end
+  return want
 end
 
 -- The whole space the panes occupy, separators and summary included.
@@ -411,9 +431,9 @@ function M.open(target)
   local had_height = vim.api.nvim_win_get_height(origin)
   local log_win = vim.api.nvim_open_win(bufs.log, false, { split = where, win = origin })
   if side then
-    vim.api.nvim_win_set_width(log_win, math.floor(had_width * size))
+    vim.api.nvim_win_set_width(log_win, share(had_width, size, min_width))
   else
-    vim.api.nvim_win_set_height(log_win, math.floor(had_height * size))
+    vim.api.nvim_win_set_height(log_win, share(had_height, size, min_height))
   end
   local footer_win
   if bufs.footer then

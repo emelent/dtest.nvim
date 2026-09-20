@@ -21,7 +21,9 @@ M.defaults = {
     -- 'right', 'left', 'below', 'above', or 'auto' for beside a wide
     -- window and under any other.
     position = 'auto',
-    size = nil,      -- the share of that window they take; nil picks one
+    -- The share of that window they take: a fifth of it beside, two
+    -- thirds of it under, unless this says otherwise.
+    size = nil,
     log_ratio = 0.7, -- the log's share of the panes, the tree taking the rest
     footer = true,   -- the two summary lines along the bottom
   },

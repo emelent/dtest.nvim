@@ -60,16 +60,21 @@ No other plugins are needed.
 
                                                                   *:DtestFile*
 :DtestFile[!]           Run every test the file in the current buffer
-                        declares, and go to the panes to watch. With !, the
-                        run happens in the background: the cursor stays in
-                        the buffer and the outcome is echoed when it ends.
-                        See |dtest-from-source|.
+                        declares. The cursor stays where it is; with !, it
+                        goes to the panes. See |dtest-from-source|.
 
                                                                *:DtestNearest*
-:DtestNearest[!]        Run the test the cursor is in, and go to the panes.
-                        Above the first test of a class, the class is what
-                        runs. With !, the run happens in the background.
+:DtestNearest[!]        Run the test the cursor is in. Above the first
+                        test of a class, the class is what runs. The cursor
+                        stays where it is; with !, it goes to the panes.
                         See |dtest-from-source|.
+
+                                                                *:DtestFolder*
+:DtestFolder[!] [path]  Run a folder of tests. Without {path} it asks
+                        which, in Snacks' picker when that is installed
+                        and in |vim.ui.select()| otherwise. The cursor
+                        stays where it is; with !, it goes to the panes.
+                        See |dtest-folders|.
 
                                                                 *:DtestReload*
 :DtestReload            Rebuild and list the tests again.
@@ -110,7 +115,9 @@ they are given, and is re-checked when the terminal is resized: >
 A cell is about twice as tall as it is wide, so a space counts as wide
 once it has at least 2.5 columns per line. `layout.direction` pins either
 arrangement; `layout.position` and `layout.size` say where the space comes
-from and how much of the window is given up to it.
+from and how much of the window is given up to it. Beside the code the
+panes take a fifth of it, as a sidebar does; under it, two thirds, there
+being no code alongside to crowd. Neither goes below what can be read.
 
 Log     The larger pane, 70%. The results of whatever the tree selects:
         for a test its verdict, message, failing location, stack trace and
@@ -162,6 +169,23 @@ the log line under the cursor when it is a stack frame, else a failed
 test's failing line, else the declaration of what is selected, found by
 scanning the project's sources.
 
+                                                             *dtest-folders*
+Folders of tests ~
+
+A folder is a namespace under a project, and the project itself. .NET lays
+namespaces out as directories by convention, so these are the folders of
+the test tree. |:DtestFolder| lists them with what each one holds, counting
+everything beneath it: picking `Orders` runs `Orders/Validation` too.
+
+A project runs unfiltered; a namespace runs as one
+`FullyQualifiedName~Ns.` filter rather than one expression per class.
+Afterwards the tree is focused on what ran, its classes opened.
+
+With Snacks installed the list is its picker, under the source name
+`dtest_folders`, so `Snacks.picker.config.sources.dtest_folders` can change
+its layout or keys. Without it, |vim.ui.select()| is used, which is
+whatever the editor has been told to use for a choice.
+
                                                           *dtest-from-source*
 Running from the file you are editing ~
 
@@ -211,7 +235,7 @@ itself, so they work from a buffer whose project is nowhere near it.
       layout = {
         direction = 'auto',  -- 'auto' | 'vertical' | 'horizontal'
         position = 'auto',   -- 'auto' | 'right' | 'left' | 'below' | 'above'
-        size = nil,          -- their share of the window split; nil picks one
+        size = nil,          -- a fifth beside the code, two thirds under it
         log_ratio = 0.7,     -- the log's share, the tree taking the rest
         footer = true,       -- the two summary lines
       },
