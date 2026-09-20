@@ -128,9 +128,9 @@ local function stub()
 end
 
 -- Opens the panes over a fresh fixture and waits for the listing.
-local function open()
+local function open(layout)
   commands = {}
-  config.setup({ no_build = true })
+  config.setup({ no_build = true, layout = layout })
   stub()
   local target = fixture()
   commands.source = vim.fs.dirname(target) .. '/tests/' .. API .. '/RateLimitMiddlewareTests.cs'
@@ -149,7 +149,7 @@ local function close()
 end
 
 local function tree_win()
-  return vim.fn.bufwinid(vim.fn.bufnr(ui.buffer_names.tree))
+  return vim.fn.bufwinid(t.pane_buf('tree') or -1)
 end
 
 local function select(pattern)
@@ -160,19 +160,35 @@ local function select(pattern)
   return ui.current()
 end
 
--- Edits the fixture's source file in a tab of its own, as if the panes had
--- been left behind for the code.
-local function in_source_buffer()
-  vim.cmd('tabnew ' .. vim.fn.fnameescape(commands.source))
-  return vim.api.nvim_get_current_tabpage()
+-- Puts the fixture's source file in the window dtest was opened from and
+-- goes there, which is where the cursor is when a run is asked for from
+-- the code.
+local function in_source_buffer(file)
+  local panes = {}
+  for _, name in ipairs({ 'tree', 'log', 'footer' }) do
+    panes[t.pane_buf(name) or -1] = true
+  end
+  for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+    if not panes[vim.api.nvim_win_get_buf(win)] then
+      vim.api.nvim_set_current_win(win)
+      vim.cmd('edit! ' .. vim.fn.fnameescape(file or commands.source))
+      return win
+    end
+  end
+  error('no window left for the code')
 end
 
-local function drop_tab(tab)
-  if vim.api.nvim_tabpage_is_valid(tab) then
-    vim.api.nvim_set_current_tabpage(tab)
-    vim.cmd('tabclose!')
-  end
+local function back_to_source(win)
+  vim.api.nvim_set_current_win(win)
 end
+
+-- The window a pane is drawn in, and where it sits.
+local function pane(name)
+  return vim.fn.bufwinid(t.pane_buf(name) or -1)
+end
+
+local function row_of(win) return vim.api.nvim_win_get_position(win)[1] end
+local function col_of(win) return vim.api.nvim_win_get_position(win)[2] end
 
 local function run_and_wait()
   local s = ui.session()
@@ -399,7 +415,8 @@ return {
       local s = ui.session()
       return s and not s:busy() and s.tree:counts().total == 6
     end, 'the tests to be listed')
-    t.eq(2, #vim.api.nvim_tabpage_list_wins(0), 'the log and the tree, and nothing else')
+    t.eq(nil, t.pane_buf('footer'), 'no summary buffer at all')
+    t.eq(3, #vim.api.nvim_tabpage_list_wins(0), 'the code, the log and the tree')
     ui.actions['run-all']()
     run_and_wait() -- nowhere to draw the summary, but the run still lands
     t.eq(1, ui.session().tree:counts().failed)
@@ -423,10 +440,10 @@ return {
 
   { 'runs the tests of the file in the buffer and shows them', function()
     open()
-    local source_tab = in_source_buffer()
+    local source = in_source_buffer()
     require('dtest').run_file({})
     run_and_wait()
-    t.eq(vim.fn.bufnr(ui.buffer_names.tree), vim.api.nvim_get_current_buf(),
+    t.eq(t.pane_buf('tree'), vim.api.nvim_get_current_buf(),
       'the panes are where it lands')
     t.eq('FullyQualifiedName~Shop.Api.Tests.Middleware.RateLimitMiddlewareTests.',
       arg_of(commands[#commands], '--filter'))
@@ -434,20 +451,18 @@ return {
     local s = ui.session()
     t.eq('Middleware.RateLimitMiddlewareTests', s.zoom.name, "the tree narrows to the file's class")
     t.eq(s.zoom, s:rows()[1], 'which becomes the root of the tree')
-    t.matches('Tests  in Shop%.Api%.Tests.-Middleware%.RateLimitMiddlewareTests',
-      vim.wo[vim.fn.bufwinid(vim.fn.bufnr(ui.buffer_names.tree))].winbar,
+    t.matches('RateLimitMiddlewareTests', vim.wo[pane('tree')].winbar,
       'and the title says what is in focus')
     ui.actions.unfocus()
     t.eq('Shop.Api.Tests', s.zoom.name, 'and steps back out a level at a time')
     ui.actions.unfocus()
     t.eq(nil, s.zoom)
-    drop_tab(source_tab)
     close()
   end },
 
   { 'opens every test of the file, and a run does not fold them away', function()
     open()
-    local source_tab = in_source_buffer()
+    local source = in_source_buffer()
     require('dtest').run_file({})
     run_and_wait()
     local lines = t.lines('tree')
@@ -459,31 +474,29 @@ return {
     ui.actions['run-all']()
     run_and_wait()
     t.eq(nil, t.find_line(t.lines('tree'), '%(n: 1%)'), 'the passing theory folds')
-    drop_tab(source_tab)
     close()
   end },
 
   { 'stays in the buffer when asked to run in the background', function()
     open()
-    local source_tab = in_source_buffer()
+    local source = in_source_buffer()
     require('dtest').run_file({ focus = false })
     run_and_wait()
     t.matches('RateLimitMiddlewareTests%.cs$', vim.api.nvim_buf_get_name(0),
       'the cursor stays in the code the run came from')
     t.eq(1, ui.session().tree:counts().failed)
-    drop_tab(source_tab)
     close()
   end },
 
   { 'runs the test the cursor is on', function()
     open()
-    local source_tab = in_source_buffer()
+    local source = in_source_buffer()
     require('dtest').run_nearest({ line = 13 }) -- inside OverLimit_Returns429
     run_and_wait()
     t.eq('FullyQualifiedName=Shop.Api.Tests.Middleware.RateLimitMiddlewareTests.OverLimit_Returns429',
       arg_of(commands[#commands], '--filter'))
 
-    vim.api.nvim_set_current_tabpage(source_tab)
+    back_to_source(source)
     vim.api.nvim_win_set_cursor(0, { 6, 0 }) -- the other test, from the real cursor
     require('dtest').run_nearest()
     run_and_wait()
@@ -491,41 +504,98 @@ return {
       arg_of(commands[#commands], '--filter'))
     t.eq('Middleware.RateLimitMiddlewareTests', ui.session().zoom.name,
       'one test focuses the class it is in, never the test itself')
-    drop_tab(source_tab)
     close()
   end },
 
   { 'reads an attribute line as the test under it, and the class above them all', function()
     open()
-    local source_tab = in_source_buffer()
+    local source = in_source_buffer()
     require('dtest').run_nearest({ line = 11 }) -- the [Fact] over OverLimit
     run_and_wait()
     t.eq('FullyQualifiedName=Shop.Api.Tests.Middleware.RateLimitMiddlewareTests.OverLimit_Returns429',
       arg_of(commands[#commands], '--filter'))
 
-    vim.api.nvim_set_current_tabpage(source_tab)
+    back_to_source(source)
     require('dtest').run_nearest({ line = 1 }) -- above the first test
     run_and_wait()
     t.eq('FullyQualifiedName~Shop.Api.Tests.Middleware.RateLimitMiddlewareTests.',
       arg_of(commands[#commands], '--filter'), 'the class is what the cursor is on')
-    drop_tab(source_tab)
     close()
   end },
 
   { 'says so when a buffer holds no tests it knows, and stays put', function()
     local s = open()
     local ran = #commands
-    vim.cmd('tabnew ' .. vim.fn.fnameescape(vim.fs.dirname(s.target) .. '/Program.cs'))
-    local source_tab = vim.api.nvim_get_current_tabpage()
+    in_source_buffer(vim.fs.dirname(s.target) .. '/Program.cs')
     vim.api.nvim_buf_set_lines(0, 0, -1, false, { 'public class Program { static void Main() {} }' })
     require('dtest').run_file({})
     t.matches('No listed tests', s.message.text)
     t.eq(ran, #commands, 'and runs nothing')
     t.matches('Program%.cs$', vim.api.nvim_buf_get_name(0),
-      'nothing to watch, so nothing to switch to')
-    vim.cmd('tabclose!')
-    t.ok(source_tab)
+      'nothing to watch, so nothing to move to')
     close()
+  end },
+
+  { 'reads a space as wide only once it is comfortably wider than tall', function()
+    t.eq('horizontal', ui.direction_for(200, 50))
+    t.eq('vertical', ui.direction_for(100, 50), 'a cell is twice as tall as it is wide')
+    t.eq('vertical', ui.direction_for(80, 40))
+    config.setup({ layout = { direction = 'vertical' } })
+    t.eq('vertical', ui.direction_for(400, 20), 'the config pins it whatever the shape')
+    config.setup({})
+  end },
+
+  { 'stacks the log over the tree, 70 to 30', function()
+    open({ direction = 'vertical' })
+    local log, tree, footer = pane('log'), pane('tree'), pane('footer')
+    t.ok(row_of(log) < row_of(tree), 'the log is on top')
+    t.eq(col_of(log), col_of(tree), 'stacked, so they start in the same column')
+    local body = vim.api.nvim_win_get_height(log) + vim.api.nvim_win_get_height(tree)
+    t.ok(math.abs(vim.api.nvim_win_get_height(log) - body * 0.7) <= 1,
+      'the log takes about seven tenths of the height')
+    t.eq(2, vim.api.nvim_win_get_height(footer))
+    t.ok(row_of(footer) > row_of(tree), 'and the summary is along the bottom')
+    close()
+  end },
+
+  { 'sits the tree left of the log, 30 to 70, with the summary under both', function()
+    open({ direction = 'horizontal' })
+    local log, tree, footer = pane('log'), pane('tree'), pane('footer')
+    t.ok(col_of(tree) < col_of(log), 'the tree is on the left')
+    t.eq(row_of(tree), row_of(log), 'side by side, so they start on the same row')
+    local width = vim.api.nvim_win_get_width(tree) + vim.api.nvim_win_get_width(log) + 1
+    t.ok(math.abs(vim.api.nvim_win_get_width(tree) - width * 0.3) <= 1,
+      'the tree takes about three tenths of the width')
+    t.eq(width, vim.api.nvim_win_get_width(footer), 'the summary spans both panes')
+    t.ok(row_of(footer) > row_of(log))
+    close()
+  end },
+
+  { 'turns the panes round when the space changes shape', function()
+    open({ direction = 'vertical' })
+    t.ok(row_of(pane('log')) < row_of(pane('tree')))
+    config.setup({ no_build = true, layout = { direction = 'horizontal' } })
+    ui.reorient()
+    ui.resize()
+    t.ok(col_of(pane('tree')) < col_of(pane('log')), 'the tree moved beside the log')
+    t.eq(row_of(pane('tree')), row_of(pane('log')))
+    ui.reorient() -- and back again
+    t.eq('horizontal', ui.direction_for(400, 20), 'still pinned')
+    config.setup({ no_build = true, layout = { direction = 'vertical' } })
+    ui.reorient()
+    t.ok(row_of(pane('log')) < row_of(pane('tree')), 'and back under it')
+    close()
+  end },
+
+  { 'leaves the editor standing when the panes were all there was', function()
+    open()
+    for _, win in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
+      local ft = vim.bo[vim.api.nvim_win_get_buf(win)].filetype
+      if not ft:match('^dtest') then pcall(vim.api.nvim_win_close, win, true) end
+    end
+    close()
+    t.eq(1, #vim.api.nvim_tabpage_list_wins(0), 'a window is left in their place')
+    t.eq(false, ui.is_open())
   end },
 
   { 'binds the keys the config names', function()
@@ -536,7 +606,7 @@ return {
       local s = ui.session()
       return s and not s:busy() and s.tree:counts().total == 6
     end, 'the tests to be listed')
-    local buf = vim.fn.bufnr(ui.buffer_names.tree)
+    local buf = t.pane_buf('tree')
     local keys = {}
     for _, map in ipairs(vim.api.nvim_buf_get_keymap(buf, 'n')) do
       keys[map.lhs] = map.desc

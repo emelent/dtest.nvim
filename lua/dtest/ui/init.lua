@@ -1,7 +1,9 @@
--- The two panes and the footer, in a tab page of their own. The log sits
--- on top, the tree below it, and the last two lines carry the summary, the
--- same arrangement the dtest TUI has. Motions inside a pane are Neovim's
--- own; everything else goes through an action, so a rebinding in the config
+-- The two panes and the summary, opened as windows beside whatever is
+-- being edited. Which way round the panes go follows the shape of the
+-- space they are given: stacked while it is tall, the log over the tree as
+-- the dtest TUI has them, and side by side once it is wide, the tree on
+-- the left where a list belongs. Motions inside a pane are Neovim's own;
+-- everything else goes through an action, so a rebinding in the config
 -- moves it without any handler knowing which key arrived.
 local config = require('dtest.config')
 local hl = require('dtest.ui.hl')
@@ -36,7 +38,58 @@ local tree_only = {
 
 --- Reports whether the panes are open.
 function M.is_open()
-  return S ~= nil and vim.api.nvim_tabpage_is_valid(S.tab)
+  return S ~= nil and vim.api.nvim_win_is_valid(S.wins.tree)
+end
+
+--- Reports whether they are also on screen, rather than sitting in a tab
+--- page that is not the one being looked at.
+function M.is_visible()
+  return M.is_open()
+    and vim.api.nvim_win_get_tabpage(S.wins.tree) == vim.api.nvim_get_current_tabpage()
+end
+
+-- Layout.
+
+-- A terminal cell is about twice as tall as it is wide, so a space only
+-- reads as wide once it is comfortably past that.
+local wide_enough = 2.5
+
+--- Which way round the panes go in a space that size: 'horizontal' puts
+--- the tree left of the log, 'vertical' stacks the log over it. The config
+--- may pin either, in which case the shape is not consulted.
+function M.direction_for(width, height)
+  local wanted = config.options.layout.direction
+  if wanted == 'horizontal' or wanted == 'vertical' then return wanted end
+  return width >= wide_enough * height and 'horizontal' or 'vertical'
+end
+
+-- Where the panes are carved out of the window they open from, and how
+-- much of it they take: beside it while it is wide, under it otherwise.
+local function placement(win)
+  local wanted = config.options.layout.position
+  local where = wanted
+  if where ~= 'right' and where ~= 'left' and where ~= 'below' and where ~= 'above' then
+    local width = vim.api.nvim_win_get_width(win)
+    local height = vim.api.nvim_win_get_height(win)
+    where = width >= wide_enough * height and 'right' or 'below'
+  end
+  local side = where == 'right' or where == 'left'
+  return where, config.options.layout.size or (side and 0.5 or 0.65), side
+end
+
+-- The whole space the panes occupy, separators and summary included.
+local function area_size()
+  local width = vim.api.nvim_win_get_width(S.wins.log)
+  local height = vim.api.nvim_win_get_height(S.wins.log)
+  if S.direction == 'horizontal' then
+    width = width + vim.api.nvim_win_get_width(S.wins.tree) + 1 -- the divider
+  else
+    height = height + vim.api.nvim_win_get_height(S.wins.tree)
+  end
+  if S.wins.footer then
+    height = height + vim.api.nvim_win_get_height(S.wins.footer)
+  end
+  return width, height
 end
 
 -- Drawing.
@@ -194,8 +247,8 @@ local function draw_titles()
       vim.wo[win].winbar = render.pane_title(title, has_focus, vim.api.nvim_win_get_width(win))
       -- Both cursor lines stay lit, since the tree's is what the log is
       -- showing; the one without focus is simply drawn a shade back.
-      vim.wo[win].winhighlight = 'CursorLine:' ..
-        (has_focus and 'DtestCursorLine' or 'DtestCursorLineNC')
+      vim.wo[win].winhighlight = 'StatusLine:DtestStatus,StatusLineNC:DtestStatus,CursorLine:'
+        .. (has_focus and 'DtestCursorLine' or 'DtestCursorLineNC')
     end
   end
 end
@@ -249,6 +302,12 @@ local function make_buffer(name, filetype)
   return buf
 end
 
+local function count_windows(wins)
+  local n = 0
+  for _ in pairs(wins) do n = n + 1 end
+  return n
+end
+
 local function setup_window(win, opts)
   vim.wo[win].number = false
   vim.wo[win].relativenumber = false
@@ -258,9 +317,14 @@ local function setup_window(win, opts)
   vim.wo[win].spell = false
   vim.wo[win].wrap = opts.wrap
   vim.wo[win].cursorline = opts.cursorline
+  -- Both axes are held, since the panes now share a tab page with whatever
+  -- is being edited and every split elsewhere would otherwise move them.
   vim.wo[win].winfixheight = true
+  vim.wo[win].winfixwidth = true
   -- No ~ past the end: these panes are reports, not files being edited.
   vim.wo[win].fillchars = 'eob: '
+  -- Their own status line says nothing the pane titles do not, so it is
+  -- left blank and painted as background.
   vim.wo[win].statusline = ' '
 end
 
@@ -275,15 +339,14 @@ function M.close()
     state.timer:close()
   end
   state.session:shutdown()
-  if state.saved then
-    vim.o.laststatus = state.saved.laststatus
-    vim.o.ruler = state.saved.ruler
-  end
   pcall(vim.api.nvim_del_augroup_by_id, state.augroup)
-  -- Closing every window of the only tab page would close the editor, so
-  -- an empty one is put in its place first.
-  if vim.api.nvim_tabpage_is_valid(state.tab) and #vim.api.nvim_list_tabpages() == 1 then
-    vim.cmd('tabnew')
+  -- Closing every window of a tab page would take the tab, and the editor
+  -- with it when it is the last one, so something is left in their place.
+  local tab = vim.api.nvim_win_is_valid(state.wins.tree)
+    and vim.api.nvim_win_get_tabpage(state.wins.tree) or nil
+  if tab and #vim.api.nvim_tabpage_list_wins(tab) <= count_windows(state.wins) then
+    vim.api.nvim_open_win(vim.api.nvim_create_buf(true, false), false,
+      { split = 'above', win = state.wins.log })
   end
   for _, win in pairs(state.wins) do
     if vim.api.nvim_win_is_valid(win) then
@@ -295,9 +358,6 @@ function M.close()
       pcall(vim.api.nvim_buf_delete, buf, { force = true })
     end
   end
-  if vim.api.nvim_tabpage_is_valid(state.tab) and #vim.api.nvim_list_tabpages() > 1 then
-    pcall(vim.api.nvim_win_close, vim.api.nvim_tabpage_list_wins(state.tab)[1], true)
-  end
   if state.origin and vim.api.nvim_win_is_valid(state.origin) then
     pcall(vim.api.nvim_set_current_win, state.origin)
   end
@@ -306,7 +366,7 @@ end
 --- Opens the panes for target, or brings the open ones forward.
 function M.open(target)
   if M.is_open() then
-    vim.api.nvim_set_current_tabpage(S.tab)
+    M.focus()
     return
   end
   local opts = config.options
@@ -329,47 +389,62 @@ function M.open(target)
 
   hl.setup()
   local origin = vim.api.nvim_get_current_win()
-  vim.cmd('tabnew')
-  local tab = vim.api.nvim_get_current_tabpage()
-  local log_win = vim.api.nvim_get_current_win()
-  local placeholder = vim.api.nvim_win_get_buf(log_win)
-
   local bufs = {
     log = make_buffer('log', 'dtest-log'),
     tree = make_buffer('tree', 'dtest-tree'),
     footer = opts.layout.footer and make_buffer('footer', 'dtest-summary') or nil,
   }
-  vim.api.nvim_win_set_buf(log_win, bufs.log)
-  vim.cmd('belowright split')
-  local tree_win = vim.api.nvim_get_current_win()
-  vim.api.nvim_win_set_buf(tree_win, bufs.tree)
+
+  -- The log takes the new space first, so it is the whole of it; the
+  -- summary is split off the bottom before the tree is, which is what
+  -- makes it span both panes once they sit side by side.
+  --
+  -- 'equalalways' is off for the duration: on, it hands every window an
+  -- equal share each time one of these three opens, which would grow the
+  -- space taken from the window being split with every step.
+  local equalalways = vim.o.equalalways
+  vim.o.equalalways = false
+  local where, size, side = placement(origin)
+  -- Measured before the split, since by then the window being taken from
+  -- has already given half of itself away.
+  local had_width = vim.api.nvim_win_get_width(origin)
+  local had_height = vim.api.nvim_win_get_height(origin)
+  local log_win = vim.api.nvim_open_win(bufs.log, false, { split = where, win = origin })
+  if side then
+    vim.api.nvim_win_set_width(log_win, math.floor(had_width * size))
+  else
+    vim.api.nvim_win_set_height(log_win, math.floor(had_height * size))
+  end
   local footer_win
-  if opts.layout.footer then
-    vim.cmd('belowright split')
-    footer_win = vim.api.nvim_get_current_win()
-    vim.api.nvim_win_set_buf(footer_win, bufs.footer)
+  if bufs.footer then
+    footer_win = vim.api.nvim_open_win(bufs.footer, false,
+      { split = 'below', win = log_win, height = footer_h })
   end
-  if vim.api.nvim_buf_is_valid(placeholder) and placeholder ~= bufs.log then
-    pcall(vim.api.nvim_buf_delete, placeholder, { force = true })
-  end
+  local width = vim.api.nvim_win_get_width(log_win)
+  local height = vim.api.nvim_win_get_height(log_win) + (footer_win and footer_h or 0)
+  local direction = M.direction_for(width, height)
+  local tree_win = vim.api.nvim_open_win(bufs.tree, false, {
+    split = direction == 'horizontal' and 'left' or 'below',
+    win = log_win,
+  })
 
   setup_window(log_win, { wrap = true, cursorline = true })
   setup_window(tree_win, { wrap = false, cursorline = true })
   if footer_win then
     setup_window(footer_win, { wrap = false, cursorline = false })
     vim.wo[footer_win].winbar = ''
-    vim.api.nvim_win_set_height(footer_win, footer_h)
   end
+  vim.o.equalalways = equalalways
 
   local session = session_mod.new(target, {
     configuration = opts.configuration,
     no_build = opts.no_build,
   })
   S = {
-    tab = tab,
     origin = origin,
     wins = { log = log_win, tree = tree_win, footer = footer_win },
     bufs = bufs,
+    direction = direction,
     session = session,
     rows = {},
     selected = nil,
@@ -383,15 +458,12 @@ function M.open(target)
   -- A run started from a source buffer leaves the summary out of sight, so
   -- how it went is said out loud instead.
   session.on_batch_end = function(counts)
-    if not M.is_open() or vim.api.nvim_get_current_tabpage() == S.tab then return end
+    if M.is_visible() then return end
     vim.notify(string.format('dtest: %s — %d failed | %d passed | %d skipped',
       session.name, counts.failed, counts.passed, counts.skipped),
       counts.failed > 0 and vim.log.levels.WARN or vim.log.levels.INFO)
   end
 
-  S.saved = { laststatus = vim.o.laststatus, ruler = vim.o.ruler }
-  vim.o.laststatus = 0 -- the pane titles say which pane is which
-  vim.o.ruler = false   -- and a line number means nothing in a report
   M.resize()
   M.bind_keys()
   M.bind_autocmds()
@@ -402,6 +474,48 @@ function M.open(target)
   vim.api.nvim_set_current_win(tree_win)
   M.render()
   session:start()
+end
+
+--- Opens the panes when they are closed and closes them when they are open.
+function M.toggle()
+  if M.is_open() then
+    M.close()
+  else
+    M.open()
+  end
+end
+
+--- Gives the log its share of the space and the tree the rest: the log on
+--- top while they are stacked, the tree on the left once they are side by
+--- side, 70/30 either way.
+function M.resize()
+  if not M.is_open() then return end
+  local ratio = config.options.layout.log_ratio
+  local width, height = area_size()
+  if S.direction == 'horizontal' then
+    pcall(vim.api.nvim_win_set_width, S.wins.tree,
+      math.max(12, math.floor(width * (1 - ratio))))
+  else
+    local body = math.max(4, height - (S.wins.footer and footer_h or 0))
+    pcall(vim.api.nvim_win_set_height, S.wins.log, math.max(3, math.floor(body * ratio)))
+  end
+  if S.wins.footer then
+    pcall(vim.api.nvim_win_set_height, S.wins.footer, footer_h)
+  end
+end
+
+--- Turns the panes round when the space they are in has changed shape.
+--- Moving one split is enough: the tree goes under the log or beside it,
+--- and the summary stays along the bottom of both either way.
+function M.reorient()
+  if not M.is_open() then return end
+  local wanted = M.direction_for(area_size())
+  if wanted == S.direction then return end
+  local ok = pcall(vim.api.nvim_win_set_config, S.wins.tree, {
+    split = wanted == 'horizontal' and 'left' or 'below',
+    win = S.wins.log,
+  })
+  if ok then S.direction = wanted end
 end
 
 --- Opens the panes if they are closed. Focus stays where it is unless
@@ -417,7 +531,7 @@ function M.ensure_open(opts)
       pcall(vim.api.nvim_set_current_win, back)
     end
   elseif opts.focus then
-    vim.api.nvim_set_current_tabpage(S.tab)
+    M.focus()
   end
   return S.session
 end
@@ -446,9 +560,10 @@ function M.focus_on(node, opts)
   M.render()
 end
 
---- Brings the panes forward.
+--- Puts the cursor in the tree, from wherever it was, bringing the tab
+--- page the panes live on forward when that is another one.
 function M.focus()
-  if M.is_open() then vim.api.nvim_set_current_tabpage(S.tab) end
+  if M.is_open() then pcall(vim.api.nvim_set_current_win, S.wins.tree) end
 end
 
 --- Puts the tree cursor on a node, opening whatever hides it.
@@ -463,35 +578,12 @@ function M.reveal(node)
   M.render()
 end
 
---- Says something in the summary line, and out loud as well when the panes
---- are not the tab being looked at.
+--- Says something in the summary line, and out loud as well when the
+--- panes are nowhere on screen to say it.
 function M.announce(text, is_error)
   if S then S.session:notify(text, is_error) end
-  if not M.is_open() or vim.api.nvim_get_current_tabpage() ~= S.tab then
+  if not M.is_visible() then
     vim.notify('dtest: ' .. text, is_error and vim.log.levels.WARN or vim.log.levels.INFO)
-  end
-end
-
---- Opens the panes when they are closed and closes them when they are open.
-function M.toggle()
-  if M.is_open() then
-    M.close()
-  else
-    M.open()
-  end
-end
-
---- Gives the log pane its share of the height and the tree the rest.
-function M.resize()
-  if not M.is_open() then return end
-  local total = vim.api.nvim_win_get_height(S.wins.log)
-    + vim.api.nvim_win_get_height(S.wins.tree)
-    + (S.wins.footer and vim.api.nvim_win_get_height(S.wins.footer) or 0)
-  local body = math.max(4, total - (S.wins.footer and footer_h or 0))
-  pcall(vim.api.nvim_win_set_height, S.wins.log,
-    math.max(3, math.floor(body * config.options.layout.log_ratio)))
-  if S.wins.footer then
-    pcall(vim.api.nvim_win_set_height, S.wins.footer, footer_h)
   end
 end
 
@@ -767,23 +859,11 @@ function M.bind_autocmds()
       if M.is_open() then draw_titles() end
     end,
   })
-  -- The status lines are hidden while dtest is on screen and come back the
-  -- moment another tab is, so nothing else loses its bottom line.
-  vim.api.nvim_create_autocmd('TabEnter', {
-    group = group,
-    callback = function()
-      if not M.is_open() then return end
-      if vim.api.nvim_get_current_tabpage() == S.tab then
-        vim.o.laststatus, vim.o.ruler = 0, false
-      else
-        vim.o.laststatus, vim.o.ruler = S.saved.laststatus, S.saved.ruler
-      end
-    end,
-  })
   vim.api.nvim_create_autocmd({ 'VimResized', 'WinResized' }, {
     group = group,
     callback = function()
       if not M.is_open() then return end
+      M.reorient() -- the space may be a different shape now
       M.resize()
       M.render()
     end,

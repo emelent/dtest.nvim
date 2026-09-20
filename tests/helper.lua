@@ -29,9 +29,20 @@ function M.find_line(lines, pattern)
   return nil
 end
 
+-- The buffer of a pane, found by its filetype: bufnr() matches any part
+-- of a name, so a project path holding the word "dtest" would answer for
+-- these.
+function M.pane_buf(name)
+  local wanted = ({ tree = 'dtest-tree', log = 'dtest-log', footer = 'dtest-summary' })[name]
+  for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_valid(buf) and vim.bo[buf].filetype == wanted then return buf end
+  end
+  return nil
+end
+
 function M.lines(name)
-  local buf = vim.fn.bufnr(require('dtest.ui').buffer_names[name])
-  if buf == -1 then return {} end
+  local buf = M.pane_buf(name)
+  if not buf then return {} end
   return vim.api.nvim_buf_get_lines(buf, 0, -1, false)
 end
 

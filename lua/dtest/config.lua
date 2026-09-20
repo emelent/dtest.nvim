@@ -13,8 +13,17 @@ M.defaults = {
   build_on_open = true,
 
   layout = {
-    log_ratio = 0.65, -- the share of the height the log pane takes
-    footer = true,    -- the two summary lines along the bottom
+    -- Which way round the panes go: 'vertical' stacks the log over the
+    -- tree, 'horizontal' puts the tree left of the log, and 'auto' takes
+    -- whichever suits the shape of the space they are given.
+    direction = 'auto',
+    -- Where that space is carved out of the window they open from:
+    -- 'right', 'left', 'below', 'above', or 'auto' for beside a wide
+    -- window and under any other.
+    position = 'auto',
+    size = nil,      -- the share of that window they take; nil picks one
+    log_ratio = 0.7, -- the log's share of the panes, the tree taking the rest
+    footer = true,   -- the two summary lines along the bottom
   },
 
   icons = {

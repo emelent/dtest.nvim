@@ -104,6 +104,9 @@ function M.setup()
     DtestTreeSlowUnit = faded(c.skipped, 0.55),
 
     DtestCursorLine = { link = 'CursorLine' },
+    -- The panes' own status lines carry nothing, so they are painted as
+    -- background rather than as a bar across the screen.
+    DtestStatus = { fg = spec(c.dim).fg, ctermfg = spec(c.dim).ctermfg },
     DtestCursorLineNC = cursor_line_nc(),
 
     DtestBadgeFail = { fg = spec(c.badge).fg, bg = spec(c.failed).fg,

@@ -46,6 +46,27 @@ The dependency direction is one way: `ui` → `session` → `tree`, `dotnet`.
   lines of `{text, highlight}` segments and nothing else; `init.lua` owns
   the windows, the keymaps and the redraw.
 
+### The windows
+
+The panes are three windows beside whatever is being edited, in the tab
+page `open` was called from — not a tab of their own. `is_open` asks
+whether the tree window is still valid; `is_visible` also asks whether it
+is on the tab being looked at, which is what decides between saying
+something in the summary line and saying it out loud.
+
+`open` builds them in one order for a reason: the log takes the new space,
+the summary is split off its bottom, and only then is the tree split off,
+which is what leaves the summary spanning both panes when they sit side by
+side. `'equalalways'` is off while that happens, or each split would hand
+every window in the tab an equal share and the space taken would grow with
+every step. Sizes are measured off the window being split **before** it is
+split, since by then it has already given half of itself away.
+
+`direction_for` chooses between stacked and side by side at 2.5 columns
+per line (a cell is about twice as tall as it is wide). `reorient` moves
+the tree with `nvim_win_set_config` when a resize changes the answer, which
+is cheaper and less jarring than rebuilding the layout.
+
 ### How a run works
 
 `Session:enqueue` turns selected nodes into requests and `pump` starts them

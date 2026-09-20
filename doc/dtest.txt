@@ -94,23 +94,37 @@ require('dtest').is_open()              Whether the panes are open.
 ==============================================================================
 5. LAYOUT                                                       *dtest-layout*
 
-The panes open in a tab page of their own, so nothing you had open moves.
+The panes open beside the window |:Dtest| was called from, so the code
+stays on screen. Which way round they go follows the shape of the space
+they are given, and is re-checked when the terminal is resized: >
 
-Log     Top, about 65% of the height. The results of whatever the tree
-        selects: for a test its verdict, message, failing location, stack
-        trace and output; for a group every failure beneath it. Build errors
-        come first. It is an ordinary buffer, so Neovim's motions, search
-        and yanking all work in it.
+    wide space                       tall space
+    +--------+-----------+           +---------------------+
+    | Tests  | Log       |           | Log           70%   |
+    |  30%   |  70%      |           +---------------------+
+    +--------+-----------+           | Tests         30%   |
+    | Ran 8 tests        |           +---------------------+
+    +--------------------+           | Ran 8 tests         |
+                                     +---------------------+
+<
+A cell is about twice as tall as it is wide, so a space counts as wide
+once it has at least 2.5 columns per line. `layout.direction` pins either
+arrangement; `layout.position` and `layout.size` say where the space comes
+from and how much of the window is given up to it.
 
-Tests   Below it: projects, classes, methods and theory rows under a root
-        that stands for the solution, with counts and durations rolled up.
-        Moving the cursor here is what changes the log.
+Log     The larger pane, 70%. The results of whatever the tree selects:
+        for a test its verdict, message, failing location, stack trace and
+        output; for a group every failure beneath it. Build errors come
+        first. It is an ordinary buffer, so Neovim's motions, search and
+        yanking all work in it.
 
-Summary The last two lines: what the batch was, and how it went. A message
-        from dtest takes the first of the two while it has something to say.
+Tests   The other 30%: projects, classes, methods and theory rows under a
+        root that stands for the solution, with counts and durations
+        rolled up. Moving the cursor here is what changes the log.
 
-While the dtest tab is current, 'laststatus' and 'ruler' are off and come
-back the moment another tab is.
+Summary Two lines along the bottom, spanning both panes: what the batch
+        was, and how it went. A message from dtest takes the first of the
+        two while it has something to say.
 
 The buffers carry the filetypes `dtest-tree`, `dtest-log` and
 `dtest-summary`.
@@ -163,7 +177,7 @@ Which tests a buffer holds is worked out from the classes it declares and
 the names dotnet already listed, so a helper or a call to another test is
 never mistaken for one. The buffer is read, not the file on disk.
 
-Both take you to the panes, opening them in their own tab when they are
+Both take you to the panes, opening them beside the buffer when they are
 closed, and focus the tree on what the file holds: the class it declares
 becomes the root of the tree, as the focus key does, with every test under
 it unfolded, theory rows included. The run that follows leaves those folds
@@ -195,7 +209,10 @@ itself, so they work from a buffer whose project is nowhere near it.
       no_build = false,      -- list and run against existing binaries
       build_on_open = true,  -- build once when the panes open
       layout = {
-        log_ratio = 0.65,    -- the share of the height the log takes
+        direction = 'auto',  -- 'auto' | 'vertical' | 'horizontal'
+        position = 'auto',   -- 'auto' | 'right' | 'left' | 'below' | 'above'
+        size = nil,          -- their share of the window split; nil picks one
+        log_ratio = 0.7,     -- the log's share, the tree taking the rest
         footer = true,       -- the two summary lines
       },
       icons = { passed = '✓', failed = '×', skipped = '↓', none = '·',

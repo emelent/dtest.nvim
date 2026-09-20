@@ -616,11 +616,21 @@ end
 
 --- A ⎯⎯ Title ⎯⎯⎯ winbar. The rule itself is faint so it only frames the
 --- pane; the title carries the colour, bright when the pane is focused.
+--- A title too long for a narrow pane keeps its end, since what is being
+--- looked at reads there and the solution it belongs to is the least of
+--- it.
 function M.pane_title(title, focused, width)
   local rule = config.options.icons.rule
   local head = rule .. rule .. ' '
   local tail = rule .. rule
-  local fill = math.max(0, width - vim.fn.strdisplaywidth(head) - vim.fn.strdisplaywidth(title) - 1 - #tail)
+  local room = math.max(4, width - vim.fn.strdisplaywidth(head) - vim.fn.strdisplaywidth(tail) - 2)
+  if vim.fn.strdisplaywidth(title) > room then
+    title = '…' .. vim.fn.strcharpart(title, vim.fn.strchars(title) - room + 1)
+  end
+  -- Cells, not bytes: the rule is three bytes wide and one column wide,
+  -- and counting the wrong one leaves the line short of the pane's edge.
+  local fill = math.max(0, width - vim.fn.strdisplaywidth(head)
+    - vim.fn.strdisplaywidth(title) - 1 - vim.fn.strdisplaywidth(tail))
   local function escape(s) return (s:gsub('%%', '%%%%')) end
   return table.concat({
     '%#DtestRule#', escape(head),

@@ -42,12 +42,36 @@ Actual:   428
 
 ## Layout
 
-`:Dtest` opens a tab page of its own, so nothing you had open moves. Three
-windows fill it, and `<C-j>` / `<C-k>` or `<Tab>` move between the two you
-can edit in.
+`:Dtest` opens beside the window you are in, so the code stays on screen.
+Which way round the panes go follows the shape of the space they are
+given, and is re-checked when the terminal is resized:
 
-- **Log** (top, about 65% of the height) shows the results of whatever the
-  tree selects. For a test: its verdict, message (expected values green,
+```
+wide space                          tall space
+┌──────────┬───────────────┐        ┌───────────────────────┐
+│ Tests    │ Log           │        │ Log             70%   │
+│ 30%      │ 70%           │        ├───────────────────────┤
+├──────────┴───────────────┤        │ Tests           30%   │
+│ Ran 8 tests · 1 failed   │        ├───────────────────────┤
+└──────────────────────────┘        │ Ran 8 tests · 1 failed│
+                                    └───────────────────────┘
+```
+
+A terminal cell is about twice as tall as it is wide, so "wide" means
+comfortably past square: once the space is at least 2.5 columns per line,
+the tree takes the left 30% and the log the right 70%; otherwise the log
+takes the top 70% and the tree the bottom 30%. The summary spans both
+either way. `layout.direction` pins one of them if you would rather not
+have it decided for you.
+
+The panes themselves are carved out of the window `:Dtest` was called
+from: beside it when that window is wide, under it when it is not, taking
+half or two thirds of it. `layout.position` and `layout.size` say
+otherwise. `<C-j>` / `<C-k>` or `<Tab>` move between the two panes; `q`
+closes them and puts you back where you started.
+
+- **Log** (the larger pane, 70%) shows the results of whatever the tree
+  selects. For a test: its verdict, message (expected values green,
   actual values red), failing location, stack trace and captured output.
   For the solution, a project, a class or a theory: every failure beneath
   it, without the tally, which the tree row it was selected from already
@@ -55,8 +79,8 @@ can edit in.
   `gg`/`G`, `/` and `n` work as they always do, and `V` then `y` yanks
   lines out of a stack trace into your own register. `v` swaps in the raw
   `dotnet` output of the selected project, coloured by kind.
-- **Tests** (below it) is the tree of projects, classes, methods and theory
-  rows under a root that stands for the solution itself, drawn with branch
+- **Tests** (the other 30%) is the tree of projects, classes, methods and
+  theory rows under a root that stands for the solution itself, drawn with branch
   lines (`├─`, `└─`, `│`) so the nesting reads at a glance, with
   vitest-style counts and durations on every group. The root's own row just
   says what the solution holds, `2 projects | 49 tests`; selecting it shows
@@ -65,7 +89,8 @@ can edit in.
   of them. After a run, passing classes fold to one line and failing ones
   open, and a project is only ever opened by that, never folded shut under
   you.
-- **Summary** (the last two lines) says what the batch was, `Ran 49 tests
+- **Summary** (two lines along the bottom, spanning both panes) says what
+  the batch was, `Ran 49 tests
   in 2.1s at 23:37:56`, and under it how it went, `4 failed | 43 passed |
   2 skipped`. It counts results in live and keeps that one shape from the
   first to the last, so the lines settle rather than changing form when the
@@ -158,8 +183,8 @@ the tree, so a test can be run without leaving the line being written.
   class is what runs. A theory runs all of its rows, since a single row
   cannot be addressed by name.
 
-Both take you to the panes, opening them in a tab of their own when they
-are closed, and the tree is **focused on what the file holds** — the class
+Both take you to the panes, opening them beside the buffer when they are
+closed, and the tree is **focused on what the file holds** — the class
 it declares becomes the root of the tree, drawn flush, exactly as `i`
 would, and every test under it is unfolded, theory rows and all. From then
 on `A` runs that class and `n` looks for failures inside it; `I` steps back
@@ -262,7 +287,11 @@ require('dtest').setup({
   build_on_open = true,  -- build once when the panes open
 
   layout = {
-    log_ratio = 0.65,    -- the share of the height the log pane takes
+    direction = 'auto',  -- 'auto' | 'vertical' (stacked) | 'horizontal' (side by side)
+    position = 'auto',   -- where they are carved out of the current window:
+                         -- 'auto' | 'right' | 'left' | 'below' | 'above'
+    size = nil,          -- their share of that window; nil picks one
+    log_ratio = 0.7,     -- the log's share of the panes, the tree taking the rest
     footer = true,       -- the two summary lines along the bottom
   },
 
@@ -326,9 +355,9 @@ not quite key for key with the TUI:
 - `o` opens the file in the window dtest was opened from, rather than
   sending it to a Neovim listening on a socket. `$nvim_sock` means nothing
   here.
-- The panes live in a tab page and the summary is a window rather than a
-  drawn footer, so status lines and the ruler are hidden while that tab is
-  current and come back with any other.
+- The panes are windows beside your code rather than a screen of their
+  own, so the summary is a window rather than a drawn footer and the two
+  of them turn side by side when there is room for it.
 - `:DtestFile` and `:DtestNearest` have no counterpart in the TUI, which
   has no buffer to read: dtest is driven from its own tree.
 - A solution-wide run reads every `.trx` the run wrote, not one: dotnet
