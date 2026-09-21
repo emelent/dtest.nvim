@@ -90,7 +90,7 @@ every window in the tab an equal share and the space taken would grow with
 every step. Sizes are measured off the window being split **before** it is
 split, since by then it has already given half of itself away.
 
-A side split takes `side_share` (a fifth) of the window it opens beside
+A side split takes `side_share` (three tenths) of the window it opens beside
 and a split under one takes `under_share` (two thirds); `share()` floors
 either at what is still readable, but only when the size was not asked for
 outright. `direction_for` chooses between stacked and side by side at 2.5

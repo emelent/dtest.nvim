@@ -64,9 +64,10 @@ end
 local wide_enough = 2.5
 
 -- What the panes take of the window they open beside or under. A column
--- beside the code is a sidebar, so it is a fifth of it; under it there is
--- no code to crowd, so it is the greater part.
-local side_share, under_share = 0.2, 0.65
+-- beside the code is a sidebar, so it is three tenths of it — enough for a
+-- breadcrumb in the log without taking the code's own width; under it
+-- there is no code to crowd, so it is the greater part.
+local side_share, under_share = 0.3, 0.65
 
 -- Below these the panes stop being readable. A share that lands under one
 -- is raised to it, though never past half of what it is taking from.

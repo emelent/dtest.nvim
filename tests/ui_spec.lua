@@ -590,10 +590,11 @@ return {
     close()
   end },
 
-  { 'takes a fifth of the window it opens beside, and no less than reads', function()
+  { 'takes three tenths of the window it opens beside, and no less than reads', function()
     open({ position = 'right' })
-    -- A fifth of the 80 columns a headless editor has is too narrow to
-    -- read, so the floor stands; the code keeps the rest either way.
+    -- Three tenths of the 80 columns a headless editor has is still too
+    -- narrow to read, so the floor stands; the code keeps the rest either
+    -- way.
     t.eq(30, vim.api.nvim_win_get_width(pane('log')))
     close()
     open({ position = 'right', size = 0.5 })
@@ -601,7 +602,7 @@ return {
     close()
     open({ position = 'below' })
     -- Under the code there is no code to crowd, so the panes take the
-    -- greater part of the height rather than a fifth of it. All three are
+    -- greater part of the height rather than three tenths of it. All three are
     -- counted, the log and the tree being stacked by default.
     local area = vim.api.nvim_win_get_height(pane('log'))
       + vim.api.nvim_win_get_height(pane('tree'))

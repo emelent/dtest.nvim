@@ -9,8 +9,15 @@ test, runs whatever the tree selects, and updates live while it goes.
 > The suite is real and runs on three Neovim versions in CI, but read the
 > code before you trust it with anything you care about.
 
-![The panes after a run: the failures in the log, the tree filled in, the
-summary along the bottom](screenshots/run.png)
+![After a run over the whole solution: every project tallied in the tree,
+the failures under the FAIL badges in the log, the summary along the
+bottom](screenshots/run.png)
+
+Or watch it work — a minute from opening the panes to reading a failure:
+
+<video src="https://raw.githubusercontent.com/emelent/nvim-dtest/main/screenshots/preview.mp4" controls muted loop></video>
+
+[preview.mp4](screenshots/preview.mp4), if the player does not load.
 
 ## Requirements
 
@@ -66,8 +73,8 @@ Lua: `require('dtest').open(target)`, `.toggle()`, `.hide()`, `.show(opts)`,
 
 Two windows beside the window you were in, so the code stays on screen.
 
-![Freshly opened beside a source file: the tree listing ten projects,
-nothing run yet](screenshots/opened.png)
+![Freshly opened beside a source file: the tree listing ten projects and
+155 tests, the log saying nothing has run yet](screenshots/opened.png)
 
 By default they are carved off its **right**, the tree over the log, and
 they stay that way whatever the window does. `layout.direction` turns them
@@ -114,8 +121,8 @@ one.
 Moving the cursor in the tree is what changes the log; there is no separate
 selection to keep track of.
 
-![One failing test selected in the tree, its message and stack trace alone in
-the log](screenshots/failure.png)
+![A project opened down to its classes and tests, the log naming the one
+the cursor is on](screenshots/tree.png)
 
 ## Keys
 
@@ -163,8 +170,8 @@ is no solution to be found; `prewarm = false` turns it off.
 running project spins, everything running beneath it turns cyan, and tests
 waiting in a queued run sit behind an hourglass.
 
-![A run in progress: projects spinning, tests queued, the summary
-counting](screenshots/running.png)
+![A run in progress: every project spinning with its tests running, the
+summary counting the seconds](screenshots/running.png)
 
 **Hiding is not closing.** `:DtestToggle` and `q` take the windows off the
 screen and leave the tree, the results and any running `dotnet test`
@@ -225,8 +232,8 @@ require('dtest').setup({
     direction = 'vertical', -- 'vertical' (stacked) | 'horizontal' (side by
                          -- side) | 'auto' to follow the shape of the space
     position = 'right',  -- 'right' | 'left' | 'below' | 'above' | 'auto'
-    size = nil,          -- their share of the window: a fifth beside it,
-                         -- two thirds under it, unless this says otherwise
+    size = nil,          -- their share of the window: three tenths beside
+                         -- it, two thirds under it, unless this says otherwise
     tree_ratio = 0.7,    -- stacked: the tree's share of the height
     side_tree_ratio = 0.3, -- side by side: the tree's share of the width
     footer = true,       -- the two summary lines along the bottom

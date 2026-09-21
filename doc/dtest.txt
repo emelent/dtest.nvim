@@ -126,8 +126,9 @@ tall as it is wide, so a space counts as wide once it has at least 2.5
 columns per line, and the panes turn round again when a resize changes
 the answer. `layout.position` and `layout.size` say where the space comes
 from and how much of the window is given up to it. Beside the code the
-panes take a fifth of it, as a sidebar does; under it, two thirds, there
-being no code alongside to crowd. Neither goes below what can be read.
+panes take three tenths of it, as a sidebar does; under it, two thirds,
+there being no code alongside to crowd. Neither goes below what can be
+read.
 
 Tests   The upper pane, 70% of the height, or the left one, 30% of the
         width, side by side: projects, classes, methods and theory rows
@@ -271,7 +272,7 @@ itself, so they work from a buffer whose project is nowhere near it.
       layout = {
         direction = 'vertical', -- 'vertical' | 'horizontal' | 'auto'
         position = 'right',  -- 'right' | 'left' | 'below' | 'above' | 'auto'
-        size = nil,          -- a fifth beside the code, two thirds under it
+        size = nil,          -- three tenths beside the code, two thirds under
         tree_ratio = 0.7,    -- stacked: the tree's share of the height
         side_tree_ratio = 0.3, -- side by side: the tree's share of the width
         footer = true,       -- the two summary lines

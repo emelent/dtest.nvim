@@ -27,7 +27,7 @@ M.defaults = {
     -- 'right', 'left', 'below', 'above', or 'auto' for beside a wide
     -- window and under any other.
     position = 'right',
-    -- The share of that window they take: a fifth of it beside, two
+    -- The share of that window they take: three tenths of it beside, two
     -- thirds of it under, unless this says otherwise.
     size = nil,
     -- The tree's share of the panes, the log taking the rest. Stacked,
