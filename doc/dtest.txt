@@ -313,8 +313,8 @@ Every group is derived from the six colours above and defined with
     DtestBadgeFail DtestBadgeSkip DtestBadgeInfo DtestCursorLine
     DtestCursorLineNC
 
-The tree wears a faded shade of each colour, so the summary is the line
-that carries.
+The tree wears the same colours as the summary; the `DtestTree*` groups
+are separate so it can be given its own.
 
 ==============================================================================
 9. HOW RUNS WORK                                                  *dtest-runs*

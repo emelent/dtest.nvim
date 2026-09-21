@@ -58,7 +58,7 @@ return {
       end
     end
     t.eq('DtestTreeSkipped', name_hl(adds))
-    t.eq('DtestTreeFailed', name_hl(rounds), 'the faded shades, the summary being the line that carries')
+    t.eq('DtestTreeFailed', name_hl(rounds))
   end },
 
   { 'lists a group\'s skipped tests, with the reason each gave', function()

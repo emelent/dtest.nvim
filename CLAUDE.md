@@ -202,8 +202,10 @@ Worth preserving when touching the drawing code, because they were asked
 for specifically:
 
 - The three outcome colours are washed shades, not the terminal's red,
-  green and yellow. The tree draws every colour a shade back
-  (`DtestTree*`), so the summary is the line that carries.
+  green and yellow. The tree wears those same shades; it drew them a shade
+  back once, and darkening an already washed colour only made the tree
+  muddy. The `DtestTree*` groups remain, so the tree can still be
+  repainted on its own.
 - Durations follow vitest: green under 300ms, yellow over, with the unit a
   faded shade of the number's colour.
 - The tree root shows only what the solution holds; results and times
@@ -211,8 +213,8 @@ for specifically:
   what it skipped, not its tally, which the row it was selected from
   already carries. The tree counts outcomes in glyphs (`×1`, `⊘1`); the
   words are the footer's, which is the line meant to be read at a glance.
-  A failed or skipped test wears its outcome's faded colour in the tree,
-  name and all.
+  A failed or skipped test wears its outcome's colour in the tree, name
+  and all.
 - A failure wears a red ` FAIL ` badge in the log and a skip an amber
   ` SKIP ` one (`DtestBadgeFail`, `DtestBadgeSkip`): the same shape, so
   both read at a glance without being mistaken for each other.

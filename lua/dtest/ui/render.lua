@@ -164,8 +164,8 @@ end
 --- as their glyphs instead: "(4 tests | ×1 | ⊘1)". A tree row is mostly
 --- name, and the words spend a good part of a narrow pane saying what the
 --- glyph and its colour already do. How many there are is grey, being a fact
---- about the tree rather than a result, and the outcomes are a shade back
---- from the footer's, which is the line meant to be read at a glance.
+--- about the tree rather than a result, and the outcomes wear the same
+--- washed colours as the summary.
 local function counts_segments(l, c)
   add(l, '(', 'DtestDim')
   local first = true

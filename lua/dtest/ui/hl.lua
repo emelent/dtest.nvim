@@ -1,8 +1,9 @@
 -- The palette. Every group is defined from the six colours in the config,
--- so repainting one repaints everything derived from it. The tree wears a
--- faded shade of each colour, so the tree stays the quiet half of the
--- screen and the footer's colours, which are the ones meant to be read at
--- a glance, carry.
+-- so repainting one repaints everything derived from it. The tree wears
+-- the same colours as the summary: the six are washed shades already, and
+-- darkening them again only made the tree muddy where it wanted to be
+-- quiet. The DtestTree* groups stay, so a config that wants the tree a
+-- shade back can still have it.
 local config = require('dtest.config')
 
 local M = {}
@@ -93,15 +94,16 @@ function M.setup()
     DtestQuickUnit = faded(c.passed, 0.7),
     DtestSlowUnit = faded(c.skipped, 0.7),
 
-    -- The tree's shade-back variants.
-    DtestTreePassed = faded(c.passed, 0.78),
-    DtestTreeFailed = faded(c.failed, 0.78),
-    DtestTreeSkipped = faded(c.skipped, 0.78),
-    DtestTreeRunning = faded(c.running, 0.78),
-    DtestTreeQuick = faded(c.passed, 0.78),
-    DtestTreeSlow = faded(c.skipped, 0.78),
-    DtestTreeQuickUnit = faded(c.passed, 0.55),
-    DtestTreeSlowUnit = faded(c.skipped, 0.55),
+    -- The tree's variants: the summary's colours exactly, kept as groups
+    -- of their own so the tree can be repainted without the summary.
+    DtestTreePassed = spec(c.passed),
+    DtestTreeFailed = spec(c.failed),
+    DtestTreeSkipped = spec(c.skipped),
+    DtestTreeRunning = spec(c.running),
+    DtestTreeQuick = spec(c.passed),
+    DtestTreeSlow = spec(c.skipped),
+    DtestTreeQuickUnit = faded(c.passed, 0.7),
+    DtestTreeSlowUnit = faded(c.skipped, 0.7),
 
     DtestCursorLine = { link = 'CursorLine' },
     -- The panes' own status lines carry nothing, so they are painted as
