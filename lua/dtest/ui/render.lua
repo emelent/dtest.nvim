@@ -349,9 +349,20 @@ local function build_errors(log)
   return out
 end
 
---- One failed test: the FAIL badge and breadcrumb, the message with its
---- assertion coloured, the failing location and, in full, the stack trace
---- and captured output.
+-- The time a test or a group took, on the line under its name. It sat at
+-- the end of the name once, which is exactly where a long breadcrumb in a
+-- narrow pane runs out of room for it.
+local function duration_line(lines, seconds)
+  if not seconds or seconds <= 0 then return end
+  local l = line()
+  add(l, '  duration ', 'DtestDim')
+  duration_segments(l, seconds, false)
+  lines[#lines + 1] = l
+end
+
+--- One failed test: the FAIL badge and breadcrumb, the duration, the
+--- message with its assertion coloured, the failing location and, in full,
+--- the stack trace and captured output.
 local function failure_lines(lines, node, full)
   local r = node.result
   local head = line()
@@ -359,9 +370,8 @@ local function failure_lines(lines, node, full)
   add(head, ' FAIL ', 'DtestBadgeFail')
   add(head, ' ')
   add(head, node:breadcrumb(), 'DtestBold')
-  add(head, ' ')
-  duration_segments(head, r.duration, false)
   lines[#lines + 1] = head
+  duration_line(lines, r.duration)
   for text in ((r.message or ''):gsub('\n+$', '') .. '\n'):gmatch('([^\n]*)\n') do
     lines[#lines + 1] = message_line(text)
   end
@@ -424,18 +434,14 @@ local function leaf_lines(lines, node)
     failure_lines(lines, node, true)
     return
   end
-  -- No time on a skipped test: it never ran, and 0.000s reads as a result.
-  if status ~= 'skipped' then
-    add(head, ' ')
-    duration_segments(head, r.duration, false)
-  end
   lines[#lines + 1] = head
+  -- No time on a skipped test: it never ran, and 0.000s reads as a result.
+  if status ~= 'skipped' then duration_line(lines, r.duration) end
   lines[#lines + 1] = line()
   if status == 'skipped' then
     skip_lines(lines, node)
   else
-    lines[#lines + 1] = line({ '  ' .. config.options.icons.passed .. ' Passed in '
-      .. util.duration(r.duration), 'DtestPassed' })
+    lines[#lines + 1] = line({ '  ' .. config.options.icons.passed .. ' Passed', 'DtestPassed' })
   end
   output_section(lines, r.output or '')
 end
@@ -479,14 +485,10 @@ function M.node_log(session, node)
   add(head, status_icon(status), status_hl(status, false))
   add(head, ' ')
   add(head, node:breadcrumb(), 'DtestBold')
+  lines[#lines + 1] = head
   -- A time only goes up once its tests have all reported: until then it
   -- would be a running total pretending to be a result.
-  local d = node:duration()
-  if d > 0 and status ~= 'running' and status ~= 'queued' then
-    add(head, ' ')
-    duration_segments(head, d, false)
-  end
-  lines[#lines + 1] = head
+  if status ~= 'running' and status ~= 'queued' then duration_line(lines, node:duration()) end
   local only = session.status_filter
   local failed, skipped = {}, {}
   for _, l in ipairs(node:leaves()) do

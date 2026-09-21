@@ -212,7 +212,9 @@ for specifically:
   muddy. The `DtestTree*` groups remain, so the tree can still be
   repainted on its own.
 - Durations follow vitest: green under 300ms, yellow over, with the unit a
-  faded shade of the number's colour.
+  faded shade of the number's colour. In the log a time goes on its own
+  line under the name it belongs to ("duration 0.4s"), where a long breadcrumb
+  in a narrow pane cannot push it off the end.
 - The tree root shows only what the solution holds; results and times
   belong to the rows below it. A group's log shows its failures and then
   what it skipped, not its tally, which the row it was selected from

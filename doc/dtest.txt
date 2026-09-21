@@ -138,8 +138,8 @@ Tests   The upper pane, 70% of the height, or the left one, 30% of the
         changes the log.
 
 Logs    The other share. The results of whatever the tree selects: for a
-        test its verdict, message, failing location, stack trace and
-        output; for a group every failure beneath it, then every test it
+        test its verdict, the time it took on the line under its name,
+        message, failing location, stack trace and output; for a group every failure beneath it, then every test it
         skipped and the reason each gave, narrowed by whatever the tree
         is narrowed by: under `f` the failures alone, under `s` the skips
         alone. A failure carries a red FAIL badge and a skip an amber SKIP

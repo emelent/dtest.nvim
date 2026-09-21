@@ -99,7 +99,8 @@ one.
   Projects start collapsed. After a run, passing classes fold away and
   failing ones open; a project is never folded shut under you.
 - **Logs** (the other share) — the results of whatever the tree selects:
-  verdict, message, failing location, stack trace and captured output for a
+  verdict, `duration 0.4s` under the name, message, failing location, stack
+  trace and captured output for a
   test; every failure beneath it for a group and then every test it
   skipped with the reason given, where `o` opens the one the cursor is
   reading rather than the group itself. A failure wears a red ` FAIL `
