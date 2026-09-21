@@ -4,6 +4,7 @@
 -- without either having to know about the other.
 local config = require('dtest.config')
 local session_mod = require('dtest.session')
+local tree = require('dtest.tree')
 local trx = require('dtest.dotnet.trx')
 local util = require('dtest.util')
 
@@ -442,8 +443,10 @@ end
 --- The log for a node: build errors first, then for a test its result,
 --- message, stack trace and output; for a group every failure beneath it
 --- and then every test it skipped, which is the other outcome worth
---- reading a reason for. The group's tally is not repeated here, since the
---- row it was selected from carries it.
+--- reading a reason for. A narrowed tree narrows this too, by the same
+--- test: showing only the failed tests and then reading about a skipped
+--- one would be the pane contradicting itself. The group's tally is not
+--- repeated here, since the row it was selected from carries it.
 function M.node_log(session, node)
   local lines = {}
   local errs = build_errors(session.logs[session_mod.BUILD_LOG])
@@ -484,13 +487,16 @@ function M.node_log(session, node)
     duration_segments(head, d, false)
   end
   lines[#lines + 1] = head
+  local only = session.status_filter
   local failed, skipped = {}, {}
   for _, l in ipairs(node:leaves()) do
     local st = l:status()
-    if st == 'failed' and l.result then
-      failed[#failed + 1] = l
-    elseif st == 'skipped' then
-      skipped[#skipped + 1] = l
+    if tree.leaf_matches(l, session.query, only) then
+      if st == 'failed' and l.result then
+        failed[#failed + 1] = l
+      elseif st == 'skipped' then
+        skipped[#skipped + 1] = l
+      end
     end
   end
   -- Every line of a test's block remembers whose it is. A group's log
@@ -507,6 +513,7 @@ function M.node_log(session, node)
       failure_lines(lines, l, false)
       tag(from, l)
     end
+  elseif only == 'skipped' then -- the skips below are the whole answer
   elseif c.running > 0 or c.queued > 0 then -- the glyph says it is going
   elseif c.passed > 0 then
     lines[#lines + 1] = line()

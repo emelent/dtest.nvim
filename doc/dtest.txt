@@ -140,9 +140,10 @@ Tests   The upper pane, 70% of the height, or the left one, 30% of the
 Logs    The other share. The results of whatever the tree selects: for a
         test its verdict, message, failing location, stack trace and
         output; for a group every failure beneath it, then every test it
-        skipped and the reason each gave. A failure carries a red FAIL
-        badge and a skip an amber SKIP one, the same shape either way.
-        Build errors come first. It is an ordinary buffer, so Neovim's motions, search and
+        skipped and the reason each gave, narrowed by whatever the tree
+        is narrowed by: under `f` the failures alone, under `s` the skips
+        alone. A failure carries a red FAIL badge and a skip an amber SKIP
+        one, the same shape either way. Build errors come first. It is an ordinary buffer, so Neovim's motions, search and
         yanking all work in it.
 
 Summary Two lines along the bottom, spanning both panes: what the batch
@@ -166,7 +167,8 @@ are Neovim's own in whichever pane has focus.
     <CR> r              run the selected node
     A                   run the whole solution, or whatever is in focus
     F                   re-run only the failed tests
-    f / s               show only the failed / skipped tests
+    f / s               show only the failed / skipped tests (the log
+                        narrows with the tree)
     a                   show all tests again (<Esc> too)
     x                   cancel the running tests and drop the queue
     n / N               next / previous failed test

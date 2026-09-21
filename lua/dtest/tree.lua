@@ -360,6 +360,18 @@ end
 --- case-insensitively, are shown; with a status, only leaves in that
 --- status. Matching leaves bring their ancestors along regardless of
 --- expansion, and projects without a match are left out.
+--- Reports whether a leaf passes the filters the tree is narrowed by: the
+--- query somewhere in its name or its project's, and the status the one
+--- asked for. The log narrows by the same test, so a group reports on the
+--- tests the tree is showing under it rather than on all of them.
+function M.leaf_matches(node, query, status)
+  local q = (query or ''):lower()
+  local by_name = q == ''
+    or node.fqn:lower():find(q, 1, true) ~= nil
+    or (node:project() and node:project().name:lower():find(q, 1, true) ~= nil)
+  return by_name and (status == nil or node._status == status)
+end
+
 function Tree:visible_from(from, query, status)
   if not from or #self.projects == 0 then return {} end
   local q = (query or ''):lower()
@@ -377,11 +389,7 @@ function Tree:visible_from(from, query, status)
   local rows = {}
   local function walk(n)
     if n:is_leaf() then
-      local by_name = q == ''
-        or n.fqn:lower():find(q, 1, true) ~= nil
-        or (n:project() and n:project().name:lower():find(q, 1, true) ~= nil)
-      local by_status = status == nil or n._status == status
-      if by_name and by_status then rows[#rows + 1] = n end
+      if M.leaf_matches(n, q, status) then rows[#rows + 1] = n end
       return
     end
     local start = #rows

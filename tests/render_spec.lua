@@ -61,6 +61,37 @@ return {
     t.eq('DtestTreeFailed', name_hl(rounds))
   end },
 
+  { 'reports only what the tree is filtered to', function()
+    local tr = tree.new('Shop', '/a/Shop.slnx')
+    local project = tr:add_project('/a/tests/Shop.Tests/Shop.Tests.csproj')
+    tr:set_tests(project, {
+      'Shop.Tests.Pricing.MoneyTests.Adds',
+      'Shop.Tests.Pricing.MoneyTests.Rounds',
+    })
+    local adds, rounds = tr:leaves()[1], tr:leaves()[2]
+    adds:set_status('skipped')
+    adds.result = { duration = 0, message = 'Waiting on the pricing fix' }
+    rounds:set_status('failed')
+    rounds.result = { duration = 0.4, message = 'Assert.Equal() Failure' }
+    local function texts(status)
+      local out = {}
+      for i, l in ipairs(render.node_log({ logs = {}, target = '/a/Shop.slnx',
+        query = '', status_filter = status }, project)) do
+        out[i] = render.text(l)
+      end
+      return out
+    end
+    local both = texts(nil)
+    t.ok(t.find_line(both, ' FAIL ') and t.find_line(both, ' SKIP '), 'unfiltered, both')
+    local only_failed = texts('failed')
+    t.ok(t.find_line(only_failed, ' FAIL '))
+    t.eq(nil, t.find_line(only_failed, ' SKIP '), 'the skipped test is not one of the results asked for')
+    local only_skipped = texts('skipped')
+    t.ok(t.find_line(only_skipped, ' SKIP '))
+    t.eq(nil, t.find_line(only_skipped, ' FAIL '))
+    t.eq(nil, t.find_line(only_skipped, 'No failed tests'), 'nor is a verdict on the failures')
+  end },
+
   { 'lists a group\'s skipped tests, with the reason each gave', function()
     local tr = tree.new('Shop', '/a/Shop.slnx')
     local project = tr:add_project('/a/tests/Shop.Tests/Shop.Tests.csproj')

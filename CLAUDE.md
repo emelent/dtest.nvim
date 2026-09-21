@@ -172,6 +172,11 @@ meanwhile.
 `plugin/dtest.lua` starts it at `VimEnter`, or right away when the file is
 sourced later than that, as it is when lazily loaded.
 
+A group's log reports on the tests the tree is showing under it, not on
+all of them: `tree.leaf_matches` is the one definition of that, used by
+`Tree:visible_from` for the rows and by `render.node_log` for the blocks,
+so `f` cannot leave a skipped test's block in a log of failures.
+
 ### Which failure `o` opens
 
 A group's log is several tests' failures, and then its skips, one after

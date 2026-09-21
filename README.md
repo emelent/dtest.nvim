@@ -144,6 +144,10 @@ Press `?` in the tree for this list, which shows whatever keys are bound.
 `l`, `h`, `n`, `N`, `/`, `f`, `s`, `a`, `i`, `t` and `<Space>` are bound in
 the tree alone, so the log keeps Neovim's own search and motions.
 
+A narrowed tree narrows the log with it: under `f` a group reports its
+failures alone, under `s` its skipped tests alone, and a name filter leaves
+the tests it hid out of both.
+
 ## Worth knowing
 
 **Listed before you ask.** When Neovim opens on a project with tests in it,
