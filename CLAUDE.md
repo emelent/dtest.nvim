@@ -174,12 +174,12 @@ sourced later than that, as it is when lazily loaded.
 
 ### Which failure `o` opens
 
-A group's log is several tests' failures one after another, so the tree's
-selected node cannot say which one is being read. `render.node_log` tags
-every line of a failure's block with the leaf it came from (`line.node`, a
-named field, which `M.text` steps over since it iterates with `ipairs`),
-`draw_log` keeps the rendered lines in `S.log_lines`, and `open-in-editor`
-reads the tag under the cursor. A location parsed from the line itself
+A group's log is several tests' failures, and then its skips, one after
+another, so the tree's selected node cannot say which one is being read.
+`render.node_log` tags every line of a test's block with the leaf it came
+from (`line.node`, a named field, which `M.text` steps over since it
+iterates with `ipairs`), `draw_log` keeps the rendered lines in
+`S.log_lines`, and `open-in-editor` reads the tag under the cursor. A location parsed from the line itself
 still wins, being the more specific answer.
 
 ### Keys go through actions
@@ -207,8 +207,15 @@ for specifically:
 - Durations follow vitest: green under 300ms, yellow over, with the unit a
   faded shade of the number's colour.
 - The tree root shows only what the solution holds; results and times
-  belong to the rows below it. A group's log shows its failures, not its
-  tally, which the row it was selected from already carries.
+  belong to the rows below it. A group's log shows its failures and then
+  what it skipped, not its tally, which the row it was selected from
+  already carries. The tree counts outcomes in glyphs (`×1`, `⊘1`); the
+  words are the footer's, which is the line meant to be read at a glance.
+  A failed or skipped test wears its outcome's faded colour in the tree,
+  name and all.
+- A failure wears a red ` FAIL ` badge in the log and a skip an amber
+  ` SKIP ` one (`DtestBadgeFail`, `DtestBadgeSkip`): the same shape, so
+  both read at a glance without being mistaken for each other.
 - Exactly one spinner, on the running project. The log never animates.
 
 ## Testing

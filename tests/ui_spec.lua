@@ -250,6 +250,11 @@ return {
     local footer = t.lines('footer')
     t.matches('Ran 6 tests in', footer[1])
     t.matches('1 failed | 5 passed | 0 skipped', footer[2])
+    -- The tree tallies outcomes in glyphs; spelling them out is the
+    -- footer's job, and the row needs the width for the name.
+    local project = t.find_line(t.lines('tree'), 'Shop%.Api%.Tests')
+    t.matches('%(4 tests | ×1%)', project, 'the failures are counted as ×1')
+    t.eq(nil, project:find('failed'), 'and never as a word: ' .. project)
     close()
   end },
 

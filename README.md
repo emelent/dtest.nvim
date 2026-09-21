@@ -93,13 +93,17 @@ one.
 
 - **Tests** (the upper pane, 70% of the height; the left one, 30% of the
   width, side by side) — projects, classes, methods and theory rows under a
-  root standing for the solution, with counts and durations rolled up.
+  root standing for the solution, with counts and durations rolled up —
+  `(4 tests | ×1 | ⊘1)`, the outcomes as their icons so the name keeps the
+  width.
   Projects start collapsed. After a run, passing classes fold away and
   failing ones open; a project is never folded shut under you.
 - **Logs** (the other share) — the results of whatever the tree selects:
   verdict, message, failing location, stack trace and captured output for a
-  test; every failure beneath it for a group, where `o` opens the one the
-  cursor is reading rather than the group itself. Build errors first. It is
+  test; every failure beneath it for a group and then every test it
+  skipped with the reason given, where `o` opens the one the cursor is
+  reading rather than the group itself. A failure wears a red ` FAIL `
+  badge, a skip an amber ` SKIP ` one. Build errors first. It is
   an ordinary buffer, so `/`, `n`, `V` and `y` work as they always do. `v`
   swaps in the raw `dotnet` output of the selected project.
 - **Summary** (two lines, spanning both) — what the batch was and how it
@@ -224,7 +228,7 @@ require('dtest').setup({
   },
 
   icons = {
-    passed = '✓', failed = '×', skipped = '↓', none = '·', queued = '⧗',
+    passed = '✓', failed = '×', skipped = '⊘', none = '◌', queued = '⧗',
     arrow = '❯', open = '▾', closed = '▸', rule = '⎯',
     spinner = { '⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏' },
   },

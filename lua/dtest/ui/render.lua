@@ -160,10 +160,12 @@ local function test_count(n)
   return util.plural(n, 'test')
 end
 
---- vitest's "(4 tests | 1 failed | 1 skipped)". How many there are is grey,
---- being a fact about the tree rather than a result, and the outcomes are a
---- shade back from the footer's, which is the line meant to be read at a
---- glance.
+--- vitest's "(4 tests | 1 failed | 1 skipped)", with the outcomes written
+--- as their glyphs instead: "(4 tests | ×1 | ⊘1)". A tree row is mostly
+--- name, and the words spend a good part of a narrow pane saying what the
+--- glyph and its colour already do. How many there are is grey, being a fact
+--- about the tree rather than a result, and the outcomes are a shade back
+--- from the footer's, which is the line meant to be read at a glance.
 local function counts_segments(l, c)
   add(l, '(', 'DtestDim')
   local first = true
@@ -175,8 +177,8 @@ local function counts_segments(l, c)
   part(test_count(c.total), 'DtestDim')
   if c.running > 0 then part(c.running .. ' running', 'DtestTreeRunning') end
   if c.queued > 0 then part(c.queued .. ' queued', 'DtestQueued') end
-  if c.failed > 0 then part(c.failed .. ' failed', 'DtestTreeFailed') end
-  if c.skipped > 0 then part(c.skipped .. ' skipped', 'DtestTreeSkipped') end
+  if c.failed > 0 then part(icons().failed .. c.failed, 'DtestTreeFailed') end
+  if c.skipped > 0 then part(icons().skipped .. c.skipped, 'DtestTreeSkipped') end
   add(l, ')', 'DtestDim')
   return l
 end
@@ -201,8 +203,9 @@ function M.node_line(node, guide, ctx)
   if status == 'failed' and node:is_leaf() then
     add(l, node.name, 'DtestTreeFailed')
   elseif status == 'skipped' and node:is_leaf() then
-    add(l, node.name, 'DtestDim')
-    add(l, ' [skipped]', 'DtestTreeSkipped')
+    -- In its own colour, as a failed test is in the failed one, and with
+    -- no word after it: the row's glyph already says it in one cell.
+    add(l, node.name, 'DtestTreeSkipped')
   elseif status == 'queued' then
     -- Everything waiting for its run is greyed out, name included; the root
     -- and the projects keep their weight so the tree still has headings.
@@ -376,6 +379,24 @@ local function failure_lines(lines, node, full)
   if full then output_section(lines, r.output or '') end
 end
 
+--- One skipped test: the SKIP badge and breadcrumb, then the reason the
+--- runner gave, when it gave one. Built like a failure's block, badge and
+--- all, so the two outcomes worth reading about are read the same way;
+--- there is simply less to say about a test that never ran.
+local function skip_lines(lines, node)
+  local head = line()
+  add(head, '  ')
+  add(head, ' SKIP ', 'DtestBadgeSkip')
+  add(head, ' ')
+  add(head, node:breadcrumb(), 'DtestBold')
+  lines[#lines + 1] = head
+  local message = (node.result and node.result.message or ''):gsub('\n+$', '')
+  if message == '' then return end
+  for text in (message .. '\n'):gmatch('([^\n]*)\n') do
+    lines[#lines + 1] = line({ text, 'DtestSkipped' })
+  end
+end
+
 -- One test's latest result.
 local function leaf_lines(lines, node)
   local status = node:status()
@@ -402,15 +423,15 @@ local function leaf_lines(lines, node)
     failure_lines(lines, node, true)
     return
   end
-  add(head, ' ')
-  duration_segments(head, r.duration, false)
+  -- No time on a skipped test: it never ran, and 0.000s reads as a result.
+  if status ~= 'skipped' then
+    add(head, ' ')
+    duration_segments(head, r.duration, false)
+  end
   lines[#lines + 1] = head
   lines[#lines + 1] = line()
   if status == 'skipped' then
-    lines[#lines + 1] = line({ '  ' .. config.options.icons.skipped .. ' Skipped', 'DtestSkipped' })
-    if (r.message or '') ~= '' then
-      lines[#lines + 1] = line({ '  ' .. r.message, 'DtestDim' })
-    end
+    skip_lines(lines, node)
   else
     lines[#lines + 1] = line({ '  ' .. config.options.icons.passed .. ' Passed in '
       .. util.duration(r.duration), 'DtestPassed' })
@@ -419,9 +440,10 @@ local function leaf_lines(lines, node)
 end
 
 --- The log for a node: build errors first, then for a test its result,
---- message, stack trace and output; for a group every failure beneath it.
---- The group's tally is not repeated here, since the row it was selected
---- from carries it.
+--- message, stack trace and output; for a group every failure beneath it
+--- and then every test it skipped, which is the other outcome worth
+--- reading a reason for. The group's tally is not repeated here, since the
+--- row it was selected from carries it.
 function M.node_log(session, node)
   local lines = {}
   local errs = build_errors(session.logs[session_mod.BUILD_LOG])
@@ -462,29 +484,43 @@ function M.node_log(session, node)
     duration_segments(head, d, false)
   end
   lines[#lines + 1] = head
-  local failed = {}
+  local failed, skipped = {}, {}
   for _, l in ipairs(node:leaves()) do
-    if l:status() == 'failed' and l.result then failed[#failed + 1] = l end
+    local st = l:status()
+    if st == 'failed' and l.result then
+      failed[#failed + 1] = l
+    elseif st == 'skipped' then
+      skipped[#skipped + 1] = l
+    end
+  end
+  -- Every line of a test's block remembers whose it is. A group's log
+  -- holds several tests, and the line under the cursor is the only thing
+  -- that says which of them is being read, so opening the source from
+  -- here has to ask it rather than the group.
+  local function tag(from, node_of)
+    for i = from, #lines do lines[i].node = node_of end
   end
   if #failed > 0 then
     for _, l in ipairs(failed) do
       local from = #lines + 1
       lines[#lines + 1] = line()
       failure_lines(lines, l, false)
-      -- Every line of a failure's block remembers whose it is. A group's
-      -- log holds several tests' failures, and the line under the cursor
-      -- is the only thing that says which of them is being read, so
-      -- opening the source from here has to ask it rather than the group.
-      for i = from, #lines do lines[i].node = l end
+      tag(from, l)
     end
   elseif c.running > 0 or c.queued > 0 then -- the glyph says it is going
-  elseif c.passed + c.skipped > 0 then
+  elseif c.passed > 0 then
     lines[#lines + 1] = line()
     lines[#lines + 1] = line({ '  ' .. config.options.icons.passed .. ' No failed tests.', 'DtestPassed' })
-  else
+  elseif #skipped == 0 then
     lines[#lines + 1] = line()
     lines[#lines + 1] = line({ '  Not run yet. Press ' .. config.key_for('run') .. ' to run it, '
       .. config.key_for('run-all') .. ' for everything.', 'DtestDim' })
+  end
+  for _, l in ipairs(skipped) do
+    local from = #lines + 1
+    lines[#lines + 1] = line()
+    skip_lines(lines, l)
+    tag(from, l)
   end
   return lines
 end

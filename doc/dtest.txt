@@ -132,13 +132,17 @@ being no code alongside to crowd. Neither goes below what can be read.
 Tests   The upper pane, 70% of the height, or the left one, 30% of the
         width, side by side: projects, classes, methods and theory rows
         under a root that stands for the solution, with counts and
-        durations rolled up. Moving the cursor here is what changes the
-        log.
+        durations rolled up: `(4 tests | ×1 | ⊘1)`, the outcomes as the
+        `icons.failed` and `icons.skipped` glyphs rather than words, which
+        leaves the width to the name. Moving the cursor here is what
+        changes the log.
 
 Logs    The other share. The results of whatever the tree selects: for a
         test its verdict, message, failing location, stack trace and
-        output; for a group every failure beneath it. Build errors come
-        first. It is an ordinary buffer, so Neovim's motions, search and
+        output; for a group every failure beneath it, then every test it
+        skipped and the reason each gave. A failure carries a red FAIL
+        badge and a skip an amber SKIP one, the same shape either way.
+        Build errors come first. It is an ordinary buffer, so Neovim's motions, search and
         yanking all work in it.
 
 Summary Two lines along the bottom, spanning both panes: what the batch
@@ -270,7 +274,7 @@ itself, so they work from a buffer whose project is nowhere near it.
         side_tree_ratio = 0.3, -- side by side: the tree's share of the width
         footer = true,       -- the two summary lines
       },
-      icons = { passed = '✓', failed = '×', skipped = '↓', none = '·',
+      icons = { passed = '✓', failed = '×', skipped = '⊘', none = '◌',
                 queued = '⧗', arrow = '❯', open = '▾', closed = '▸',
                 rule = '⎯', spinner = { '⠋', '⠙', '⠹' } },
       colors = {
@@ -306,7 +310,8 @@ Every group is derived from the six colours above and defined with
     DtestQuick DtestSlow DtestQuickUnit DtestSlowUnit
     DtestTreePassed DtestTreeFailed DtestTreeSkipped DtestTreeRunning
     DtestTreeQuick DtestTreeSlow DtestTreeQuickUnit DtestTreeSlowUnit
-    DtestBadgeFail DtestBadgeInfo DtestCursorLine DtestCursorLineNC
+    DtestBadgeFail DtestBadgeSkip DtestBadgeInfo DtestCursorLine
+    DtestCursorLineNC
 
 The tree wears a faded shade of each colour, so the summary is the line
 that carries.

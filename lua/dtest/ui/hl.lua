@@ -111,6 +111,10 @@ function M.setup()
 
     DtestBadgeFail = { fg = spec(c.badge).fg, bg = spec(c.failed).fg,
       ctermfg = spec(c.badge).ctermfg, ctermbg = spec(c.failed).ctermfg, bold = true },
+    -- The same badge in the skipped colour, so a skip is read at the same
+    -- glance as a failure without being mistaken for one.
+    DtestBadgeSkip = { fg = spec(c.badge).fg, bg = spec(c.skipped).fg,
+      ctermfg = spec(c.badge).ctermfg, ctermbg = spec(c.skipped).ctermfg, bold = true },
     DtestBadgeInfo = { fg = '#000000', bg = spec(c.running).fg,
       ctermfg = 0, ctermbg = spec(c.running).ctermfg, bold = true },
   }
