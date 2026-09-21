@@ -245,15 +245,17 @@ local function draw_footer()
   set_lines(S.bufs.footer, render.footer_lines(S.session))
 end
 
+-- No breadcrumb on the log: what is selected is named by the heading of
+-- every block under it, and by the tree row the cursor is on. Raw output
+-- is the exception, since the project whose output it is appears nowhere
+-- else.
 local function log_title()
-  local node = S.selected
   if S.help then return 'Usage' end
   if S.session.show_output then
-    local _, name = S.session:output_for(node)
+    local _, name = S.session:output_for(S.selected)
     return 'Output  ' .. name
   end
-  if not node then return 'Log' end
-  return 'Log  ' .. node:breadcrumb()
+  return 'Logs'
 end
 
 local function tree_title()

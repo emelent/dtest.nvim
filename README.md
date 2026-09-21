@@ -76,9 +76,9 @@ the other way round and `layout.position` puts them somewhere else:
 ```
 direction = 'vertical' (the default)   direction = 'horizontal'
 ┌───────────────────────┐              ┌──────────┬───────────────┐
-│ Tests           70%   │              │ Tests    │ Log           │
+│ Tests           70%   │              │ Tests    │ Logs          │
 ├───────────────────────┤              │ 30%      │ 70%           │
-│ Log             30%   │              ├──────────┴───────────────┤
+│ Logs            30%   │              ├──────────┴───────────────┤
 ├───────────────────────┤              │ Ran 8 tests · 1 failed   │
 │ Ran 8 tests · 1 failed│              └──────────────────────────┘
 └───────────────────────┘
@@ -96,7 +96,7 @@ one.
   root standing for the solution, with counts and durations rolled up.
   Projects start collapsed. After a run, passing classes fold away and
   failing ones open; a project is never folded shut under you.
-- **Log** (the other share) — the results of whatever the tree selects:
+- **Logs** (the other share) — the results of whatever the tree selects:
   verdict, message, failing location, stack trace and captured output for a
   test; every failure beneath it for a group, where `o` opens the one the
   cursor is reading rather than the group itself. Build errors first. It is

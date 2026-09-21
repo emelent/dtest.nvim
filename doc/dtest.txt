@@ -113,9 +113,9 @@ the log, and stay that way whatever the window does: >
 
     direction = 'vertical'           direction = 'horizontal'
     +---------------------+          +--------+-----------+
-    | Tests         70%   |          | Tests  | Log       |
+    | Tests         70%   |          | Tests  | Logs      |
     +---------------------+          |  30%   |  70%      |
-    | Log           30%   |          +--------+-----------+
+    | Logs          30%   |          +--------+-----------+
     +---------------------+          | Ran 8 tests        |
     | Ran 8 tests         |          +--------------------+
     +---------------------+
@@ -135,7 +135,7 @@ Tests   The upper pane, 70% of the height, or the left one, 30% of the
         durations rolled up. Moving the cursor here is what changes the
         log.
 
-Log     The other share. The results of whatever the tree selects: for a
+Logs    The other share. The results of whatever the tree selects: for a
         test its verdict, message, failing location, stack trace and
         output; for a group every failure beneath it. Build errors come
         first. It is an ordinary buffer, so Neovim's motions, search and
