@@ -69,16 +69,16 @@ Two windows beside the window you were in, so the code stays on screen.
 ![Freshly opened beside a source file: the tree listing ten projects,
 nothing run yet](screenshots/opened.png)
 
-By default they are carved off its **right**, the log over the tree, and
+By default they are carved off its **right**, the tree over the log, and
 they stay that way whatever the window does. `layout.direction` turns them
 the other way round and `layout.position` puts them somewhere else:
 
 ```
 direction = 'vertical' (the default)   direction = 'horizontal'
 ┌───────────────────────┐              ┌──────────┬───────────────┐
-│ Log             70%   │              │ Tests    │ Log           │
+│ Tests           70%   │              │ Tests    │ Log           │
 ├───────────────────────┤              │ 30%      │ 70%           │
-│ Tests           30%   │              ├──────────┴───────────────┤
+│ Log             30%   │              ├──────────┴───────────────┤
 ├───────────────────────┤              │ Ran 8 tests · 1 failed   │
 │ Ran 8 tests · 1 failed│              └──────────────────────────┘
 └───────────────────────┘
@@ -91,16 +91,17 @@ when a resize changes the answer. It is not the default: panes that are
 glanced at sidelong are worth more keeping one shape than taking the better
 one.
 
-- **Log** (70%) — the results of whatever the tree selects: verdict,
-  message, failing location, stack trace and captured output for a test;
-  every failure beneath it for a group, where `o` opens the one the cursor
-  is reading rather than the group itself. Build errors first. It is an
-  ordinary buffer, so `/`, `n`, `V` and `y` work as they always do. `v`
+- **Tests** (the upper pane, 70% of the height; the left one, 30% of the
+  width, side by side) — projects, classes, methods and theory rows under a
+  root standing for the solution, with counts and durations rolled up.
+  Projects start collapsed. After a run, passing classes fold away and
+  failing ones open; a project is never folded shut under you.
+- **Log** (the other share) — the results of whatever the tree selects:
+  verdict, message, failing location, stack trace and captured output for a
+  test; every failure beneath it for a group, where `o` opens the one the
+  cursor is reading rather than the group itself. Build errors first. It is
+  an ordinary buffer, so `/`, `n`, `V` and `y` work as they always do. `v`
   swaps in the raw `dotnet` output of the selected project.
-- **Tests** (30%) — projects, classes, methods and theory rows under a root
-  standing for the solution, with counts and durations rolled up. Projects
-  start collapsed. After a run, passing classes fold away and failing ones
-  open; a project is never folded shut under you.
 - **Summary** (two lines, spanning both) — what the batch was and how it
   went, counted in live and keeping one shape from first result to last.
   Messages take the upper line while there is something to say.
@@ -217,7 +218,8 @@ require('dtest').setup({
     position = 'right',  -- 'right' | 'left' | 'below' | 'above' | 'auto'
     size = nil,          -- their share of the window: a fifth beside it,
                          -- two thirds under it, unless this says otherwise
-    log_ratio = 0.7,     -- the log's share of the panes, the tree taking the rest
+    tree_ratio = 0.7,    -- stacked: the tree's share of the height
+    side_tree_ratio = 0.3, -- side by side: the tree's share of the width
     footer = true,       -- the two summary lines along the bottom
   },
 

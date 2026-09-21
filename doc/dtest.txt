@@ -108,14 +108,14 @@ require('dtest').has_session()          Whether there is a session at all,
 5. LAYOUT                                                       *dtest-layout*
 
 The panes open beside the window |:Dtest| was called from, so the code
-stays on screen. By default they are carved off its right, the log over
-the tree, and stay that way whatever the window does: >
+stays on screen. By default they are carved off its right, the tree over
+the log, and stay that way whatever the window does: >
 
     direction = 'vertical'           direction = 'horizontal'
     +---------------------+          +--------+-----------+
-    | Log           70%   |          | Tests  | Log       |
+    | Tests         70%   |          | Tests  | Log       |
     +---------------------+          |  30%   |  70%      |
-    | Tests         30%   |          +--------+-----------+
+    | Log           30%   |          +--------+-----------+
     +---------------------+          | Ran 8 tests        |
     | Ran 8 tests         |          +--------------------+
     +---------------------+
@@ -129,15 +129,17 @@ from and how much of the window is given up to it. Beside the code the
 panes take a fifth of it, as a sidebar does; under it, two thirds, there
 being no code alongside to crowd. Neither goes below what can be read.
 
-Log     The larger pane, 70%. The results of whatever the tree selects:
-        for a test its verdict, message, failing location, stack trace and
+Tests   The upper pane, 70% of the height, or the left one, 30% of the
+        width, side by side: projects, classes, methods and theory rows
+        under a root that stands for the solution, with counts and
+        durations rolled up. Moving the cursor here is what changes the
+        log.
+
+Log     The other share. The results of whatever the tree selects: for a
+        test its verdict, message, failing location, stack trace and
         output; for a group every failure beneath it. Build errors come
         first. It is an ordinary buffer, so Neovim's motions, search and
         yanking all work in it.
-
-Tests   The other 30%: projects, classes, methods and theory rows under a
-        root that stands for the solution, with counts and durations
-        rolled up. Moving the cursor here is what changes the log.
 
 Summary Two lines along the bottom, spanning both panes: what the batch
         was, and how it went. A message from dtest takes the first of the
@@ -264,7 +266,8 @@ itself, so they work from a buffer whose project is nowhere near it.
         direction = 'vertical', -- 'vertical' | 'horizontal' | 'auto'
         position = 'right',  -- 'right' | 'left' | 'below' | 'above' | 'auto'
         size = nil,          -- a fifth beside the code, two thirds under it
-        log_ratio = 0.7,     -- the log's share, the tree taking the rest
+        tree_ratio = 0.7,    -- stacked: the tree's share of the height
+        side_tree_ratio = 0.3, -- side by side: the tree's share of the width
         footer = true,       -- the two summary lines
       },
       icons = { passed = '✓', failed = '×', skipped = '↓', none = '·',

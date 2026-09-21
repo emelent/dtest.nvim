@@ -611,11 +611,11 @@ return {
     ui.open(fixture())
     t.eq('vertical', ui.direction_for(400, 20), 'a wide space is stacked all the same')
     t.eq('vertical', ui.direction_for(20, 400))
-    -- To the right of the code rather than under it, and stacked: the log
-    -- starts at the top of the tab with the tree below it.
+    -- To the right of the code rather than under it, and stacked: the tree
+    -- starts at the top of the tab with the log below it.
     t.ok(col_of(pane('log')) > 0, 'carved off the right, got column ' .. col_of(pane('log')))
-    t.eq(0, row_of(pane('log')), 'the log is the upper pane')
-    t.ok(row_of(pane('tree')) > row_of(pane('log')), 'the tree is under it, not beside it')
+    t.eq(0, row_of(pane('tree')), 'the tree is the upper pane')
+    t.ok(row_of(pane('log')) > row_of(pane('tree')), 'the log is under it, not beside it')
     t.eq(col_of(pane('log')), col_of(pane('tree')), 'in the same column, so stacked')
     close()
   end },
@@ -630,16 +630,16 @@ return {
     config.setup({})
   end },
 
-  { 'stacks the log over the tree, 70 to 30', function()
+  { 'stacks the tree over the log, 70 to 30', function()
     open({ direction = 'vertical', size = 0.9 })
     local log, tree, footer = pane('log'), pane('tree'), pane('footer')
-    t.ok(row_of(log) < row_of(tree), 'the log is on top')
+    t.ok(row_of(tree) < row_of(log), 'the tree is on top')
     t.eq(col_of(log), col_of(tree), 'stacked, so they start in the same column')
     local body = vim.api.nvim_win_get_height(log) + vim.api.nvim_win_get_height(tree)
-    t.ok(math.abs(vim.api.nvim_win_get_height(log) - body * 0.7) <= 1,
-      'the log takes about seven tenths of the height')
+    t.ok(math.abs(vim.api.nvim_win_get_height(tree) - body * 0.7) <= 1,
+      'the tree takes about seven tenths of the height')
     t.eq(2, vim.api.nvim_win_get_height(footer))
-    t.ok(row_of(footer) > row_of(tree), 'and the summary is along the bottom')
+    t.ok(row_of(footer) > row_of(log), 'and the summary is along the bottom')
     close()
   end },
 
@@ -658,7 +658,7 @@ return {
 
   { 'turns the panes round when the space changes shape', function()
     open({ direction = 'vertical', size = 0.9 })
-    t.ok(row_of(pane('log')) < row_of(pane('tree')))
+    t.ok(row_of(pane('tree')) < row_of(pane('log')))
     config.setup({ no_build = true, layout = { direction = 'horizontal', size = 0.9 } })
     ui.reorient()
     ui.resize()
@@ -668,7 +668,7 @@ return {
     t.eq('horizontal', ui.direction_for(400, 20), 'still pinned')
     config.setup({ no_build = true, layout = { direction = 'vertical', size = 0.9 } })
     ui.reorient()
-    t.ok(row_of(pane('log')) < row_of(pane('tree')), 'and back under it')
+    t.ok(row_of(pane('tree')) < row_of(pane('log')), 'and back over it')
     close()
   end },
 

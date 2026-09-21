@@ -16,8 +16,8 @@ M.defaults = {
   prewarm = true,
 
   layout = {
-    -- Which way round the panes go: 'vertical' stacks the log over the
-    -- tree, 'horizontal' puts the tree left of the log, and 'auto' takes
+    -- Which way round the panes go: 'vertical' stacks the tree over the
+    -- log, 'horizontal' puts the tree left of the log, and 'auto' takes
     -- whichever suits the shape of the space they are given. Pinned by
     -- default: a sidebar that keeps its shape is worth more than one that
     -- picks the better shape, since the panes are looked at sidelong and
@@ -30,7 +30,12 @@ M.defaults = {
     -- The share of that window they take: a fifth of it beside, two
     -- thirds of it under, unless this says otherwise.
     size = nil,
-    log_ratio = 0.7, -- the log's share of the panes, the tree taking the rest
+    -- The tree's share of the panes, the log taking the rest. Stacked,
+    -- the tree is the pane on top and the one worth the room: it is what
+    -- is steered from, and the log is read a failure at a time. Side by
+    -- side it is a list beside a page, so there it is the narrow one.
+    tree_ratio = 0.7,
+    side_tree_ratio = 0.3,
     footer = true,   -- the two summary lines along the bottom
   },
 

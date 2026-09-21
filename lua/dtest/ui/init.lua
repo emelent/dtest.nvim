@@ -1,8 +1,9 @@
 -- The two panes and the summary, opened as windows beside whatever is
 -- being edited. Which way round the panes go follows the shape of the
--- space they are given: stacked while it is tall, the log over the tree as
--- the dtest TUI has them, and side by side once it is wide, the tree on
--- the left where a list belongs. Motions inside a pane are Neovim's own;
+-- space they are given: stacked while it is tall, the tree over the log,
+-- and side by side once it is wide, the tree on the left where a list
+-- belongs. Either way the tree comes first, being what the panes are
+-- steered from. Motions inside a pane are Neovim's own;
 -- everything else goes through an action, so a rebinding in the config
 -- moves it without any handler knowing which key arrived.
 local config = require('dtest.config')
@@ -72,7 +73,7 @@ local side_share, under_share = 0.2, 0.65
 local min_width, min_height = 30, 8
 
 --- Which way round the panes go in a space that size: 'horizontal' puts
---- the tree left of the log, 'vertical' stacks the log over it. The config
+--- the tree left of the log, 'vertical' stacks the tree over it. The config
 --- may pin either, in which case the shape is not consulted.
 function M.direction_for(width, height)
   local wanted = config.options.layout.direction
@@ -372,8 +373,9 @@ end
 
 -- Builds the three windows beside origin and returns them, with the way
 -- round they ended up. The log takes the new space first, so it is the
--- whole of it; the summary is split off the bottom before the tree is,
--- which is what makes it span both panes once they sit side by side.
+-- whole of it; the summary is split off its bottom before the tree is
+-- taken off its top, which is what makes the summary span both panes once
+-- they sit side by side.
 local function build_windows(origin, bufs)
   -- 'equalalways' is off for the duration: on, it hands every window an
   -- equal share each time one of these three opens, which would grow the
@@ -400,7 +402,7 @@ local function build_windows(origin, bufs)
   local height = vim.api.nvim_win_get_height(log_win) + (footer_win and footer_h or 0)
   local direction = M.direction_for(width, height)
   local tree_win = vim.api.nvim_open_win(bufs.tree, false, {
-    split = direction == 'horizontal' and 'left' or 'below',
+    split = direction == 'horizontal' and 'left' or 'above',
     win = log_win,
   })
 
@@ -584,19 +586,21 @@ function M.toggle()
   end
 end
 
---- Gives the log its share of the space and the tree the rest: the log on
---- top while they are stacked, the tree on the left once they are side by
---- side, 70/30 either way.
+--- Gives the tree its share of the space and the log the rest: stacked,
+--- the tree is on top with seven tenths of the height; side by side it is
+--- on the left with three tenths of the width, a list needing less room
+--- than the page beside it.
 function M.resize()
   if not M.is_open() then return end
-  local ratio = config.options.layout.log_ratio
+  local layout = config.options.layout
   local width, height = area_size()
   if S.direction == 'horizontal' then
     pcall(vim.api.nvim_win_set_width, S.wins.tree,
-      math.max(12, math.floor(width * (1 - ratio))))
+      math.max(12, math.floor(width * layout.side_tree_ratio)))
   else
     local body = math.max(4, height - (S.wins.footer and footer_h or 0))
-    pcall(vim.api.nvim_win_set_height, S.wins.log, math.max(3, math.floor(body * ratio)))
+    pcall(vim.api.nvim_win_set_height, S.wins.tree,
+      math.max(3, math.floor(body * layout.tree_ratio)))
   end
   if S.wins.footer then
     pcall(vim.api.nvim_win_set_height, S.wins.footer, footer_h)
@@ -604,14 +608,14 @@ function M.resize()
 end
 
 --- Turns the panes round when the space they are in has changed shape.
---- Moving one split is enough: the tree goes under the log or beside it,
+--- Moving one split is enough: the tree goes over the log or beside it,
 --- and the summary stays along the bottom of both either way.
 function M.reorient()
   if not M.is_open() then return end
   local wanted = M.direction_for(area_size())
   if wanted == S.direction then return end
   local ok = pcall(vim.api.nvim_win_set_config, S.wins.tree, {
-    split = wanted == 'horizontal' and 'left' or 'below',
+    split = wanted == 'horizontal' and 'left' or 'above',
     win = S.wins.log,
   })
   if ok then S.direction = wanted end
