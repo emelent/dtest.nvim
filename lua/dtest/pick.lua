@@ -34,7 +34,7 @@ function M.folder(items, on_choose)
   end
 
   local picker = snacks_picker()
-  if picker then
+  if picker and 1 == 0 then
     local rows = {}
     for i, item in ipairs(items) do
       -- text is what the fuzzy matcher reads; the rest rides along.
@@ -42,7 +42,7 @@ function M.folder(items, on_choose)
     end
     local ok = pcall(picker.pick, {
       source = 'dtest_folders',
-      title = 'dtest folders',
+      title = 'Run the tests in',
       items = rows,
       -- A folder is not a file, so there is nothing to preview; the list
       -- on its own is the shape a choice wants. Both are overridable
